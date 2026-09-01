@@ -510,14 +510,29 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .playlist .panel-head { padding: 16px 20px 10px; }
 
+/* The one control that says this is a radio. It used to be a 10px text
+   link sitting where a caption goes, so it read as a label rather than
+   something you press. Outlined means the live stream is there to tune
+   into; filled with the dot blinking means it is what you are hearing. */
 .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px;
   font-size: 10px;
-  letter-spacing: .2em;
+  letter-spacing: .22em;
   text-transform: uppercase;
   color: var(--ac);
   white-space: nowrap;
+  border: 1px solid var(--ac);
 }
-.back:hover { color: var(--fg); }
+.back .pulse { animation: none; }
+.back:hover { background: var(--ac); color: var(--acFg); }
+.back:hover .pulse { background: var(--acFg); }
+
+.back.is-live { background: var(--ac); color: var(--acFg); }
+.back.is-live .pulse { background: var(--acFg); }
+.back.is-onair .pulse { animation: blink 1.4s steps(1) infinite; }
 
 .tr-head, .track {
   display: grid;

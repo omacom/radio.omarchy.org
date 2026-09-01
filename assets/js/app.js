@@ -592,6 +592,11 @@
     el.stationLabel.textContent = cur.name.toLowerCase() + ' · ' + cur.tag;
     el.srcLabel.textContent = live ? '◉ live stream' : 'playlist · track ' + (S.ti + 1);
 
+    // Filled while the live stream is the source, dot blinking only when
+    // it is actually playing rather than merely selected.
+    el.backToRadio.classList.toggle('is-live', live);
+    el.backToRadio.classList.toggle('is-onair', live && S.playing);
+
     var marquee = t
       ? (t.title + '  —  ' + t.artist)
       : (S.icyTitle ? S.icyTitle : (S.icyName || cur.name) + '  —  ' + cur.tag);
