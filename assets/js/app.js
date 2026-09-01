@@ -7,6 +7,11 @@
   'use strict';
 
   var HOST = 'https://radio.cliamp.stream';
+
+  // On-demand tracks live in the repo so they can arrive by pull request.
+  // The live stream still comes from HOST.
+  var TRACKS_DIR = 'tracks/';
+  var TRACKS_MANIFEST = 'tracks/playlist.json';
   var BAR_COUNT = 56;
   var STATS_INTERVAL = 30000;
   var CANVAS_W = 1180;
@@ -542,17 +547,26 @@
   }
 
   function loadTracks() {
-    var slug = STATIONS[S.st].slug;
-    fetch(HOST + '/' + slug + '/tracks').then(function (r) {
+    fetch(TRACKS_MANIFEST).then(function (r) {
       if (!r.ok) throw new Error('no playlist');
       return r.json();
     }).then(function (j) {
-      S.tracks = (j && j.tracks) || [];
+      S.tracks = ((j && j.tracks) || []).map(resolveTrack);
       paintTracks();
     }).catch(function () {
       S.tracks = [];
       paintTracks();
     });
+  }
+
+  // A contributed entry names its file and nothing else; encoding happens
+  // here so nobody has to hand-escape spaces or accents in the manifest. An
+  // entry that already carries a url is left alone.
+  function resolveTrack(t) {
+    if (t.url) return t;
+    var r = { title: t.title, artist: t.artist, album: t.album };
+    r.url = TRACKS_DIR + encodeURIComponent(t.file || '');
+    return r;
   }
 
   /* ── painting ────────────────────────────────────────── */
