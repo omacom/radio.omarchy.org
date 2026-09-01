@@ -170,7 +170,6 @@
                : 'rgba(0,0,0,.42) 0 2px, transparent 2px 4px') + ')');
 
     el.skinName.textContent = k.name;
-    el.footSkin.textContent = k.name;
     document.querySelector('meta[name="theme-color"]').setAttribute('content', k.bg);
 
     Array.prototype.forEach.call(el.themeMenu.children, function (li, i) {
@@ -709,6 +708,14 @@
       : (S.bal < 0 ? 'l' : 'r') + Math.round(Math.abs(S.bal) * 100);
     el.volKnob.setAttribute('aria-valuenow', Math.round(S.vol * 100));
     el.balKnob.setAttribute('aria-valuenow', Math.round(S.bal * 100));
+
+    // 0..1 position for the phone layout, where these are bars rather than
+    // dials. Balance is bipolar, so it is mapped onto the same range.
+    el.volKnob.style.setProperty('--v', S.vol.toFixed(4));
+    el.balKnob.style.setProperty('--v', ((S.bal + 1) / 2).toFixed(4));
+
+    // Nothing to scrub on a live stream.
+    el.seek.classList.toggle('is-live', S.mode !== 'track');
   }
 
   function paintStats() {
@@ -904,7 +911,7 @@
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'balKnob', 'balRot', 'balLabel', 'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
       'playlistName', 'geoName', 'tracks', 'playlistNote', 'geoList', 'peak', 'status',
-      'footSkin', 'backToRadio', 'installBtn'
+      'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
 
     buildThemeMenu();

@@ -150,16 +150,6 @@
           <span><span id="netActive">&#8212;</span> listening now</span>
         </p>
         <p class="net-sum"><span id="netSessions">&#8212;</span> sessions &middot; <span id="netHours">&#8212;</span> h</p>
-        <div class="picker">
-          <button type="button" class="picker-btn" id="themeBtn" aria-expanded="false" aria-controls="themeMenu" aria-haspopup="listbox">
-            <span class="picker-name">
-              <span class="sw-ac" aria-hidden="true"></span>
-              <span id="skinName">green</span>
-            </span>
-            <span class="caret" id="themeCaret" aria-hidden="true">&#9660;</span>
-          </button>
-          <ul class="menu" id="themeMenu" role="listbox" aria-label="Colour theme" hidden></ul>
-        </div>
       </div>
     </header>
 
@@ -263,7 +253,16 @@
 
     <footer class="foot">
       <p class="status"><span class="pulse" aria-hidden="true"></span><span id="status">ready</span></p>
-      <p class="foot-skin" id="footSkin">green</p>
+      <div class="picker">
+        <button type="button" class="picker-btn" id="themeBtn" aria-expanded="false" aria-controls="themeMenu" aria-haspopup="listbox">
+          <span class="picker-name">
+            <span class="sw-ac" aria-hidden="true"></span>
+            <span id="skinName">green</span>
+          </span>
+          <span class="caret" id="themeCaret" aria-hidden="true">&#9660;</span>
+        </button>
+        <ul class="menu" id="themeMenu" role="listbox" aria-label="Colour theme" hidden></ul>
+      </div>
       <button type="button" class="install" id="installBtn" hidden>install app</button>
     </footer>
 

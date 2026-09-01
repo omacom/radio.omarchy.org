@@ -211,9 +211,11 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .menu {
   position: absolute;
-  top: 100%;
+  /* The picker lives in the footer, so the list has to open upwards or it
+     opens into the bottom edge and is clipped. */
+  bottom: 100%;
   right: 0;
-  margin-top: 3px;
+  margin-bottom: 3px;
   z-index: 20;
   width: 240px;
   max-height: 340px;
@@ -667,7 +669,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .status { display: flex; align-items: center; gap: 8px; color: var(--ac); }
 .status .pulse { width: 6px; height: 6px; animation-duration: 1.1s; }
-.foot-skin { margin-left: auto; color: var(--fg); }
+.foot .picker { margin-left: auto; }
 
 /* Shown only once the browser says it can actually be installed, so it is
    never a button that does nothing. */
@@ -710,7 +712,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .wordmark, .home, .live-now, .net-sum, .picker-btn, .menu button,
 .panel-title, .panel-meta, .lcd-top, .artist,
 .tile-l, .tr-head, .tr-s, .tr-artist, .knob-lbl, .back,
-.panel-note, .geo-name, .foot, .status, .foot-skin {
+.panel-note, .geo-name, .foot, .status {
   font-weight: var(--wt-small);
 }
 
@@ -776,10 +778,46 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   /* Touch targets. Everything below was 27px to 36px tall, under the 44px
      a fingertip needs, and the knobs were the worst of it at 34 square
      while also being the only controls you have to drag. */
-  .tb { height: 48px; width: 52px; }
-  .tb-play { width: 86px; }
-  .knob { width: 48px; height: 48px; }
+  /* One control bar across the width rather than four buttons huddled at
+     the left with the rest of the row empty. */
+  .tbtns { width: 100%; }
+  .tb { height: 48px; width: auto; flex: 1; }
+  .tb-play { flex: 1.6; }
+
   .seek { height: 44px; }
+  .seek.is-live { display: none; }
+
+  /* A dial is the wrong shape for a thumb, and at this size both read as
+     empty boxes. They become bars. knobDrag already answers to sideways
+     movement, so only the look changes. */
+  .knobs { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
+  .knob-wrap { gap: 12px; }
+  .knob-rot { display: none; }
+  .knob-lbl { width: 24px; }
+  .knob-val { width: 36px; text-align: right; }
+  .knob {
+    flex: 1;
+    width: auto;
+    height: 44px;
+    cursor: ew-resize;
+    background: linear-gradient(90deg,
+      var(--ac) calc(var(--v, 0) * 100%), var(--trk) calc(var(--v, 0) * 100%));
+  }
+  /* Balance is centred, not filled: a marker reads it correctly. */
+  #balKnob {
+    background: linear-gradient(90deg,
+      var(--trk) calc(var(--v, .5) * 100% - 2px),
+      var(--fg)  calc(var(--v, .5) * 100% - 2px),
+      var(--fg)  calc(var(--v, .5) * 100% + 2px),
+      var(--trk) calc(var(--v, .5) * 100% + 2px));
+  }
+
+  .foot { flex-wrap: wrap; }
+  .foot .picker-btn { min-width: 0; }
+
+  /* 24 themes in a scrolling list, each one a tap target. */
+  .menu button { min-height: 44px; }
+  .menu { max-height: 60vh; }
   .picker-btn { min-height: 44px; }
   .back { min-height: 44px; display: inline-flex; align-items: center; }
   .install { min-height: 44px; }
@@ -797,8 +835,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   /* Flattening .bar-r lets the picker share the wordmark's row instead of
      claiming one of its own on a screen with no rows to spare. */
   .bar-r { display: contents; }
-  .picker { order: 1; margin-left: auto; }
-  .live-now { order: 2; flex-basis: 100%; }
+  .live-now { order: 1; margin-left: auto; }
 
   .marq-txt { font-size: 34px; }
   .wordmark { letter-spacing: .2em; }
