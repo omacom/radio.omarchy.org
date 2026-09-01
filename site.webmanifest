@@ -1,7 +1,7 @@
 {
   "name": "Omarchy Radio",
   "short_name": "Omarchy Radio",
-  "description": "Twelve always-on music streams. Free, no signup, plays straight in your browser.",
+  "description": "Omarchy Radio",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

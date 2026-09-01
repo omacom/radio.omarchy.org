@@ -126,7 +126,15 @@ button {
 
 .bar-l { display: flex; align-items: center; gap: 12px; }
 
-.dot { width: 9px; height: 9px; flex: none; background: var(--ac); }
+/* Omarchy mark, traced from the omarchy.org favicon. It is a monochrome
+   glyph, so it takes the theme accent like the square it replaced. */
+.logo {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: block;
+  color: var(--ac);
+}
 
 .wordmark {
   font-size: 11px;
