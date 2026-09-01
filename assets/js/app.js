@@ -223,41 +223,7 @@
 
   /* ── station list ────────────────────────────────────── */
 
-  function buildStations() {
-    el.stationList.innerHTML = '';
-    var frag = document.createDocumentFragment();
-    STATIONS.forEach(function (d, i) {
-      var li = document.createElement('li');
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'station' + (i === S.st ? ' is-on' : '');
-      b.dataset.slug = d.slug;
-      b.setAttribute('aria-current', i === S.st ? 'true' : 'false');
-      b.innerHTML =
-        '<span class="mark" aria-hidden="true"></span>' +
-        '<span class="st-txt"><span class="st-name"></span><span class="st-tag"></span></span>' +
-        '<span class="st-num"><span class="st-live">—</span><span class="st-lbl">live</span></span>';
-      b.querySelector('.st-name').textContent = d.name;
-      b.querySelector('.st-tag').textContent = d.tag;
-      b.addEventListener('click', function () { pickStation(i); });
-      li.appendChild(b);
-      frag.appendChild(li);
-    });
-    el.stationList.appendChild(frag);
-    el.stationCount.textContent = STATIONS.length +
-      (STATIONS.length === 1 ? ' stream' : ' streams');
-  }
 
-  function paintStations() {
-    var rows = el.stationList.querySelectorAll('.station');
-    Array.prototype.forEach.call(rows, function (b, i) {
-      var on = i === S.st;
-      b.classList.toggle('is-on', on);
-      b.setAttribute('aria-current', on ? 'true' : 'false');
-      var ss = S.stats && S.stats.stations ? S.stats.stations[STATIONS[i].slug] : null;
-      b.querySelector('.st-live').textContent = ss ? ss.active_listeners : '—';
-    });
-  }
 
   /* ── visualiser bars ─────────────────────────────────── */
 
@@ -269,6 +235,54 @@
   }
 
   /* ── audio ───────────────────────────────────────────── */
+
+  /* ── media session ───────────────────────────────────
+     Audio keeps playing with the screen off because it is an <audio>
+     element; what this adds is being able to control it while it does.
+     The lock screen and the notification shade get the title, artwork and
+     working buttons, and the keyboard media keys reach the deck. Without
+     it a backgrounded stream is audible but unreachable. */
+
+  var MEDIA_ART = [
+    { src: 'assets/images/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: 'assets/images/icon-512.png', sizes: '512x512', type: 'image/png' }
+  ];
+
+  function mediaSupported() {
+    return 'mediaSession' in navigator && typeof window.MediaMetadata === 'function';
+  }
+
+  function setMediaMeta(title, artist) {
+    if (!mediaSupported()) return;
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: title || 'Omarchy Radio',
+        artist: artist || 'Omarchy',
+        album: 'Omarchy Radio',
+        artwork: MEDIA_ART
+      });
+    } catch (e) { /* older engines refuse the constructor */ }
+  }
+
+  function setMediaState() {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.playbackState = S.playing ? 'playing' : 'paused';
+    } catch (e) { /* not everywhere */ }
+  }
+
+  function wireMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    function on(action, fn) {
+      // An engine that does not know an action throws rather than ignoring it.
+      try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) { /* skip */ }
+    }
+    on('play', function () { if (audio && audio.paused) toggle(); });
+    on('pause', function () { if (audio && !audio.paused) toggle(); });
+    on('stop', stop);
+    on('nexttrack', next);
+    on('previoustrack', prev);
+  }
 
   /* ── reconnect ───────────────────────────────────────
      A live stream drops for ordinary reasons: a flaky link, a laptop
@@ -452,32 +466,15 @@
     paintAll();
   }
 
+  // There is one station, so these only ever step the on-demand tracks.
   function next() {
     if (S.mode === 'track' && S.tracks.length) playTrack((S.ti + 1) % S.tracks.length);
-    else if (STATIONS.length > 1) pickStation((S.st + 1) % STATIONS.length);
   }
 
   function prev() {
     if (S.mode === 'track' && S.tracks.length) playTrack((S.ti - 1 + S.tracks.length) % S.tracks.length);
-    else if (STATIONS.length > 1) pickStation((S.st - 1 + STATIONS.length) % STATIONS.length);
   }
 
-  function pickStation(i) {
-    cancelReconnect();
-    var wasPlaying = !audio.paused;
-    S.st = i;
-    S.tracks = [];
-    S.ti = -1;
-    S.mode = 'radio';
-    S.icyTitle = '';
-    S.icyName = '';
-    S.icyGenre = '';
-    if (!wasPlaying) { loadedSrc = ''; intent = 'idle'; setStatus('ready'); }
-    paintAll();
-    loadTracks();
-    startMeta();
-    if (wasPlaying) playRadio();
-  }
 
   /* ── network ─────────────────────────────────────────── */
 
@@ -540,7 +537,6 @@
       if (j && j.stations) {
         S.stats = j;
         paintStats();
-        paintStations();
         paintHeader();
       }
     }).catch(function () { /* stats optional */ });
@@ -593,13 +589,18 @@
     var t = S.mode === 'track' ? S.tracks[S.ti] : null;
     var live = S.mode === 'radio';
 
-    el.stationLabel.textContent = cur.name.toLowerCase() + ' · ' + cur.slug;
+    el.stationLabel.textContent = cur.name.toLowerCase() + ' · ' + cur.tag;
     el.srcLabel.textContent = live ? '◉ live stream' : 'playlist · track ' + (S.ti + 1);
 
     var marquee = t
       ? (t.title + '  —  ' + t.artist)
       : (S.icyTitle ? S.icyTitle : (S.icyName || cur.name) + '  —  ' + cur.tag);
     Array.prototype.forEach.call(el.marq.children, function (n) { n.textContent = marquee; });
+
+    setMediaMeta(
+      t ? t.title : (S.icyTitle || S.icyName || cur.name),
+      t ? t.artist : (S.icyTitle ? (S.icyName || cur.name) : cur.tag)
+    );
 
     el.artist.textContent = t
       ? (t.album || t.artist)
@@ -625,6 +626,7 @@
   }
 
   function paintTransport() {
+    setMediaState();
     el.playGlyph.textContent = S.playing ? '❙❙' : '▶';
     el.toggle.setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
     el.volRot.style.transform = 'rotate(' + (-135 + S.vol * 270) + 'deg)';
@@ -698,7 +700,6 @@
     paintLcd();
     paintTransport();
     paintStats();
-    paintStations();
     paintTracks();
   }
 
@@ -826,7 +827,7 @@
   function boot() {
     [
       'bg', 'fit', 'app', 'netActive', 'netSessions', 'netHours', 'themeBtn', 'themeMenu',
-      'themeCaret', 'skinName', 'stationList', 'stationCount', 'stationLabel', 'srcLabel',
+      'themeCaret', 'skinName', 'stationLabel', 'srcLabel',
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'balKnob', 'balRot', 'balLabel', 'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
@@ -836,7 +837,6 @@
 
     buildThemeMenu();
     applyTheme();
-    buildStations();
     buildBars();
     buildAudio();
 
@@ -916,6 +916,13 @@
     window.addEventListener('offline', function () {
       if (intent === 'play') setStatus('waiting for network');
     });
+
+    wireMediaSession();
+
+    if ('serviceWorker' in navigator) {
+      // Nothing here depends on it, so a failure is not worth reporting.
+      navigator.serviceWorker.register('sw.js').catch(function () { /* fine without */ });
+    }
 
     // No autoplay: the stream connects only when the listener presses play.
     // Metadata is still read so the display shows what is currently on air.

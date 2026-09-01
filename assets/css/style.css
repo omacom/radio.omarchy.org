@@ -62,6 +62,11 @@ button {
 
 :focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
 
+/* Touch: no grey flash on tap, and the drag controls must claim the gesture
+   or the page pans out from under a finger mid-drag. */
+button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
+.seek, .knob { touch-action: none; -webkit-user-select: none; user-select: none; }
+
 @keyframes marq { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 @keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: .12; } }
 
@@ -241,28 +246,12 @@ button {
 
 .row-top {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   flex: none;
   min-height: 0;
 }
 
-/* The station list is lifted out of flow so it contributes no height to the
-   grid row; the deck beside it defines the row, and the list scrolls inside. */
-.stations {
-  position: relative;
-  overflow: hidden;
-  border-right: 1px solid var(--bd);
-  border-bottom: 1px solid var(--bd);
-  min-height: 0;
-}
-
-.stations-inner {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
+/* Shared by the playlist and the listener panels. */
 
 .panel-head {
   display: flex;
@@ -286,71 +275,6 @@ button {
   letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--g1);
-}
-
-.station-list {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.station {
-  display: grid;
-  grid-template-columns: 3px minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  width: 100%;
-  padding: 13px 20px;
-  border-top: 1px solid var(--bdF);
-}
-.station:hover { background: var(--rowHov); }
-.station.is-on { background: var(--rowOn); }
-
-.mark { width: 3px; height: 24px; background: var(--bd); }
-.station.is-on .mark { background: var(--ac); }
-
-.st-txt { min-width: 0; }
-
-.st-name {
-  display: block;
-  font-family: var(--sans);
-  font-size: 14px;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.station.is-on .st-name { color: var(--ac); }
-
-.st-tag {
-  display: block;
-  font-size: 9px;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--c2);
-  margin-top: 4px;
-}
-
-.st-num { text-align: right; }
-
-.st-live {
-  display: block;
-  font-family: var(--lcdfont);
-  font-size: 19px;
-  line-height: 1;
-  color: var(--c2);
-}
-.station.is-on .st-live { color: var(--ac); }
-
-.st-lbl {
-  display: block;
-  font-size: 8px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--c3);
-  margin-top: 3px;
 }
 
 .deck { border-bottom: 1px solid var(--bd); min-width: 0; }
@@ -752,7 +676,7 @@ button {
    a heavier weight keeps them legible. JetBrains Mono ships 400/500/700 here,
    so 500 is a real weight rather than a synthesised one. */
 .wordmark, .home, .live-now, .net-sum, .picker-btn, .menu button,
-.panel-title, .panel-meta, .st-tag, .st-lbl, .lcd-top, .artist,
+.panel-title, .panel-meta, .lcd-top, .artist,
 .tile-l, .tr-head, .tr-s, .tr-artist, .knob-lbl, .back,
 .panel-note, .geo-name, .foot, .status, .foot-skin {
   font-weight: var(--wt-small);
@@ -775,15 +699,15 @@ button {
     transform: none;
     border-left: 0;
     border-right: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 
   .row-top, .row-bot { grid-template-columns: minmax(0, 1fr); }
   .row-bot { flex: none; }
 
-  .stations { position: static; overflow: visible; border-right: 0; order: 2; }
-  .stations-inner { position: static; }
-  .station-list { max-height: 320px; }
-  .deck { order: 1; }
   .playlist { border-right: 0; }
   .tracks, .geo-list { max-height: 340px; }
 
@@ -803,6 +727,20 @@ button {
   .transport { padding: 14px 16px; }
   .seek { order: 3; width: 100%; flex-basis: 100%; }
   .knobs { margin-left: auto; }
+
+  /* Touch targets. Everything below was 27px to 36px tall, under the 44px
+     a fingertip needs, and the knobs were the worst of it at 34 square
+     while also being the only controls you have to drag. */
+  .tb { height: 48px; width: 52px; }
+  .tb-play { width: 86px; }
+  .knob { width: 48px; height: 48px; }
+  .seek { height: 44px; }
+  .picker-btn { min-height: 44px; }
+  .back { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* The marquee sat 2px off the line beneath it. */
+  .marq-clip { margin: 8px 0 12px; }
+  .vis { height: 72px; }
 
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tile:nth-child(3) { border-left: 0; }
