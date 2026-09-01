@@ -375,6 +375,26 @@
     audio = a;
   }
 
+  /* iOS ignores writes to HTMLMediaElement.volume, leaving the hardware
+     buttons in charge. The knob still turned and the number still moved,
+     it just did nothing to the sound, which is worse than not offering it.
+     Feature detected rather than sniffed, so it corrects itself if the
+     platform ever changes its mind. Balance goes through a Web Audio
+     panner, which does work there, so it stays either way. */
+  function volumeIsSettable() {
+    if (!audio) return true;
+    var prev = audio.volume;
+    var probe = prev > 0.5 ? 0.25 : 0.75;
+    try {
+      audio.volume = probe;
+      var worked = Math.abs(audio.volume - probe) < 0.01;
+      audio.volume = prev;
+      return worked;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function wireGraph() {
     if (ctx || !audio) return;
     try {
@@ -923,6 +943,11 @@
     });
 
     wireMediaSession();
+
+    if (!volumeIsSettable()) {
+      var vw = el.volKnob.closest('.knob-wrap');
+      if (vw) vw.hidden = true;
+    }
 
     if ('serviceWorker' in navigator) {
       // Nothing here depends on it, so a failure is not worth reporting.

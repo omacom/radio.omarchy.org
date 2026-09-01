@@ -424,6 +424,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .knobs { display: flex; gap: 16px; }
 .knob-wrap { display: flex; align-items: center; gap: 9px; }
+.knob-wrap[hidden] { display: none; }
 
 .knob-lbl {
   font-size: 9px;
@@ -723,6 +724,19 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .row-top, .row-bot { grid-template-columns: minmax(0, 1fr); }
   .row-bot { flex: none; }
 
+  /* The wrappers exist for the desktop grid. Dropping their boxes makes
+     every section a direct child of .app, which is what lets the playlist
+     move above the stats: they sit in different wrappers otherwise. */
+  .row-top, .deck, .row-bot { display: contents; }
+  .bar       { order: 0; }
+  .lcd       { order: 1; }
+  .transport { order: 2; }
+  .playlist  { order: 3; }
+  .tiles     { order: 4; }
+  .geo       { order: 5; }
+  .foot      { order: 6; }
+  .playlist, .geo { border-right: 0; border-top: 1px solid var(--bd); }
+
   .playlist { border-right: 0; }
   .tracks, .geo-list { max-height: 340px; }
 
@@ -741,7 +755,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .vis { height: 60px; }
   .transport { padding: 14px 16px; }
   .seek { order: 3; width: 100%; flex-basis: 100%; }
-  .knobs { margin-left: auto; }
+  .knobs { margin-left: 0; width: 100%; justify-content: space-between; }
 
   /* Touch targets. Everything below was 27px to 36px tall, under the 44px
      a fingertip needs, and the knobs were the worst of it at 34 square
@@ -763,6 +777,12 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 480px) {
+  /* Flattening .bar-r lets the picker share the wordmark's row instead of
+     claiming one of its own on a screen with no rows to spare. */
+  .bar-r { display: contents; }
+  .picker { order: 1; margin-left: auto; }
+  .live-now { order: 2; flex-basis: 100%; }
+
   .marq-txt { font-size: 34px; }
   .wordmark { letter-spacing: .2em; }
   .home { display: none; }
