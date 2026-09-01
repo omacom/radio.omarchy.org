@@ -114,7 +114,6 @@
     tracks: [],
     playing: false,
     vol: 0.8,
-    bal: 0,
     cur: 0,
     dur: 0,
     skin: 0,
@@ -138,7 +137,7 @@
   var lev = new Float32Array(BAR_COUNT);
   var amp = 0;
   var simVis = true;
-  var audio, ctx, analyser, panner, freq, metaAbort, dpr = 1;
+  var audio, ctx, analyser, freq, metaAbort, dpr = 1;
   var loadedSrc = '';
   var intent = 'idle'; // 'play' | 'pause' | 'stop' — what the listener last asked for
   var retryN = 0, retryTimer = null, lastProgress = 0;
@@ -425,8 +424,7 @@
      buttons in charge. The knob still turned and the number still moved,
      it just did nothing to the sound, which is worse than not offering it.
      Feature detected rather than sniffed, so it corrects itself if the
-     platform ever changes its mind. Balance goes through a Web Audio
-     panner, which does work there, so it stays either way. */
+     platform ever changes its mind. */
   function volumeIsSettable() {
     if (!audio) return true;
     var prev = audio.volume;
@@ -451,14 +449,7 @@
       var an = c.createAnalyser();
       an.fftSize = 512;
       an.smoothingTimeConstant = 0.75;
-      var node = src;
-      if (c.createStereoPanner) {
-        panner = c.createStereoPanner();
-        panner.pan.value = S.bal;
-        node.connect(panner);
-        node = panner;
-      }
-      node.connect(an);
+      src.connect(an);
       an.connect(c.destination);
       ctx = c;
       analyser = an;
@@ -701,18 +692,11 @@
     el.playGlyph.textContent = S.playing ? '❙❙' : '▶';
     el.toggle.setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
     el.volRot.style.transform = 'rotate(' + (-135 + S.vol * 270) + 'deg)';
-    el.balRot.style.transform = 'rotate(' + (S.bal * 135) + 'deg)';
     el.volLabel.textContent = Math.round(S.vol * 100);
-    el.balLabel.textContent = S.bal === 0
-      ? 'c'
-      : (S.bal < 0 ? 'l' : 'r') + Math.round(Math.abs(S.bal) * 100);
     el.volKnob.setAttribute('aria-valuenow', Math.round(S.vol * 100));
-    el.balKnob.setAttribute('aria-valuenow', Math.round(S.bal * 100));
 
-    // 0..1 position for the phone layout, where these are bars rather than
-    // dials. Balance is bipolar, so it is mapped onto the same range.
+    // 0..1 position for the phone layout, where the dial is a bar.
     el.volKnob.style.setProperty('--v', S.vol.toFixed(4));
-    el.balKnob.style.setProperty('--v', ((S.bal + 1) / 2).toFixed(4));
 
     // Nothing to scrub on a live stream.
     el.seek.classList.toggle('is-live', S.mode !== 'track');
@@ -802,11 +786,6 @@
     paintTransport();
   }
 
-  function setBal(v) {
-    S.bal = Math.min(1, Math.max(-1, v));
-    if (panner) panner.pan.value = S.bal;
-    paintTransport();
-  }
 
   /* ── canvas background ───────────────────────────────── */
 
@@ -909,7 +888,7 @@
       'themeCaret', 'skinName', 'stationLabel', 'srcLabel',
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
-      'balKnob', 'balRot', 'balLabel', 'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
+      'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
       'playlistName', 'geoName', 'tracks', 'playlistNote', 'geoList', 'peak', 'status',
       'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
@@ -958,14 +937,6 @@
       if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { setVol(S.vol - 0.05); e.preventDefault(); }
     });
 
-    el.balKnob.addEventListener('pointerdown', function (e) {
-      knobDrag(e, function () { return S.bal; }, setBal);
-    });
-    el.balKnob.addEventListener('keydown', function (e) {
-      if (e.key === 'ArrowRight') { setBal(S.bal + 0.1); e.preventDefault(); }
-      if (e.key === 'ArrowLeft') { setBal(S.bal - 0.1); e.preventDefault(); }
-      if (e.key === 'Home') { setBal(0); e.preventDefault(); }
-    });
 
     document.addEventListener('keydown', function (e) {
       if (e.target.matches('input, textarea, [contenteditable]')) return;

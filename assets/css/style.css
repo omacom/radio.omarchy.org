@@ -444,7 +444,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   touch-action: none;
 }
 .knob:hover { border-color: var(--ac); }
-#balKnob { cursor: ew-resize; }
 
 .knob-rot { position: absolute; inset: 0; }
 
@@ -457,7 +456,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   margin-left: -1px;
   background: var(--ac);
 }
-.knob-tick-fg { background: var(--fg); }
 
 .knob-val {
   font-family: var(--lcdfont);
@@ -466,7 +464,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--ac);
   width: 26px;
 }
-.knob-val-fg { color: var(--fg); }
 
 /* ── stat tiles ──────────────────────────────────────── */
 
@@ -781,7 +778,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   /* One control bar across the width rather than four buttons huddled at
      the left with the rest of the row empty. */
   .tbtns { width: 100%; }
-  .tb { height: 48px; width: auto; flex: 1; }
+  .tb { height: 40px; width: auto; flex: 1; }
   .tb-play { flex: 1.6; }
 
   .seek { height: 44px; }
@@ -790,26 +787,23 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   /* A dial is the wrong shape for a thumb, and at this size both read as
      empty boxes. They become bars. knobDrag already answers to sideways
      movement, so only the look changes. */
-  .knobs { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
-  .knob-wrap { gap: 12px; }
+  .knobs { width: 100%; }
+  .knob-wrap { flex: 1; gap: 12px; }
   .knob-rot { display: none; }
   .knob-lbl { width: 24px; }
   .knob-val { width: 36px; text-align: right; }
+  /* A thin track, but the element keeps its full height so the target
+     stays a target: the bar is painted inside it rather than being it. */
   .knob {
     flex: 1;
     width: auto;
     height: 44px;
+    border: 0;
     cursor: ew-resize;
-    background: linear-gradient(90deg,
-      var(--ac) calc(var(--v, 0) * 100%), var(--trk) calc(var(--v, 0) * 100%));
-  }
-  /* Balance is centred, not filled: a marker reads it correctly. */
-  #balKnob {
-    background: linear-gradient(90deg,
-      var(--trk) calc(var(--v, .5) * 100% - 2px),
-      var(--fg)  calc(var(--v, .5) * 100% - 2px),
-      var(--fg)  calc(var(--v, .5) * 100% + 2px),
-      var(--trk) calc(var(--v, .5) * 100% + 2px));
+    background:
+      linear-gradient(90deg,
+        var(--ac) calc(var(--v, 0) * 100%), var(--trk) calc(var(--v, 0) * 100%))
+      center / 100% 8px no-repeat;
   }
 
   .foot { flex-wrap: wrap; }
