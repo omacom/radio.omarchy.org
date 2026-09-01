@@ -388,7 +388,6 @@ button {
 
 .marq {
   display: inline-flex;
-  gap: 80px;
   animation: marq 20s linear infinite;
   will-change: transform;
 }
@@ -398,6 +397,7 @@ button {
   font-size: 62px;
   line-height: 1;
   color: var(--ac);
+  padding-right: 80px;
 }
 
 .lcd-bot {
