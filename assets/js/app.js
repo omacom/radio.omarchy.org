@@ -409,7 +409,7 @@
       // pause fires asynchronously, after stop() has already set its status.
       // Only a deliberate pause calls off a reconnect; a dropped stream also
       // pauses the element, and there intent is still 'play'.
-      if (intent === 'pause' || intent === 'stop') cancelReconnect();
+      if (intent === 'pause' || intent === 'stop') { cancelReconnect(); stopMeta(); }
       S.playing = false;
       setStatus(intent === 'stop' ? 'stopped' : 'paused');
       paintTransport();
@@ -493,11 +493,14 @@
 
   function playRadio() {
     play(HOST + '/' + STATIONS[S.st].slug + '/stream', 'radio', -1);
+    syncHash();
+    startMeta();
   }
 
   function playTrack(i) {
     var t = S.tracks[i];
-    if (t) play(t.url, 'track', i);
+    // An on-demand track carries its own title; the live feed is not needed.
+    if (t) { play(t.url, 'track', i); syncHash(); stopMeta(); }
   }
 
   function toggle() {
@@ -509,11 +512,14 @@
     if (ctx && ctx.state === 'suspended') ctx.resume();
     var p = audio.play();
     if (p && p.catch) p.catch(function () {});
+    if (S.mode === 'radio') startMeta();
   }
 
   function stop() {
     intent = 'stop';
     cancelReconnect();
+    stopMeta();
+    S.icyTitle = '';
     audio.pause();
     try { audio.currentTime = 0; } catch (e) { /* live stream */ }
     loadedSrc = '';
@@ -535,8 +541,18 @@
 
   /* ── network ─────────────────────────────────────────── */
 
+  function stopMeta() {
+    if (metaAbort) { metaAbort.abort(); metaAbort = null; }
+  }
+
+  /* Reads the ICY title off the live stream. This is a full stream
+     connection whose audio is thrown away, so it runs only while the
+     listener is actually on the live stream. Left running from page load
+     it downloaded the station around the clock for every open tab, and
+     the server counted each one as a listener. */
   function startMeta() {
     if (metaAbort) metaAbort.abort();
+    if (S.mode !== 'radio') { metaAbort = null; return; }
     var ac = new AbortController();
     metaAbort = ac;
     var url = HOST + '/' + STATIONS[S.st].slug + '/stream';
@@ -605,7 +621,10 @@
       return r.json();
     }).then(function (j) {
       S.tracks = ((j && j.tracks) || []).map(resolveTrack);
+      assignSlugs(S.tracks);
       paintTracks();
+      // A link that names a track opens on that track.
+      openHash();
     }).catch(function () {
       S.tracks = [];
       paintTracks();
@@ -731,6 +750,80 @@
     el.geoList.appendChild(frag);
   }
 
+  /* ── deep links ──────────────────────────────────────
+     Every track has a URL. Opening one selects that track and asks it to
+     play; a browser that wants a gesture first will say so rather than
+     starting on its own. The address bar follows whatever is playing, so
+     the link worth sharing is always the one already in it. */
+
+  function slugify(str) {
+    var s = String(str || '');
+    // Strip accents first, or "Aurelien" would come out full of dashes.
+    if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return s.toLowerCase()
+      .replace(/['\u2019]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  // Slugs come from the title so a link reads as the song. Two tracks can
+  // share a title, so the artist breaks the tie, and a number after that.
+  function assignSlugs(tracks) {
+    var seen = {};
+    tracks.forEach(function (t) {
+      var base = slugify(t.title) || 'track';
+      var slug = base;
+      if (seen[slug]) slug = base + '-' + slugify(t.artist);
+      var n = 2;
+      while (seen[slug]) { slug = base + '-' + n; n++; }
+      seen[slug] = true;
+      t.slug = slug;
+    });
+  }
+
+  function trackLink(t) {
+    return location.origin + location.pathname + '#' + t.slug;
+  }
+
+  function indexOfSlug(slug) {
+    for (var i = 0; i < S.tracks.length; i++) {
+      if (S.tracks[i].slug === slug) return i;
+    }
+    return -1;
+  }
+
+  // replaceState, not push: stepping through a playlist should not build a
+  // back stack the listener has to climb out of.
+  function syncHash() {
+    var t = S.mode === 'track' ? S.tracks[S.ti] : null;
+    var want = t ? '#' + t.slug : '';
+    if (location.hash === want) return;
+    try {
+      history.replaceState(null, '', want || location.pathname);
+    } catch (e) { /* file:// and the like */ }
+  }
+
+  function openHash() {
+    var slug = (location.hash || '').replace(/^#/, '');
+    if (!slug) return false;
+    var i = indexOfSlug(slug);
+    if (i < 0) return false;
+    playTrack(i);
+    return true;
+  }
+
+  function copyLink(t) {
+    var url = trackLink(t);
+    function fell_back() { setStatus(url); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () {
+        setStatus('link copied');
+      }, fell_back);
+    } else {
+      fell_back();
+    }
+  }
+
   function paintTracks() {
     el.tracks.innerHTML = '';
     var frag = document.createDocumentFragment();
@@ -749,7 +842,20 @@
       b.querySelector('.tr-artist').textContent = tr.artist;
       b.querySelector('.tr-s').textContent = on ? (S.playing ? 'playing' : 'paused') : '';
       b.addEventListener('click', function () { playTrack(i); });
+
+      var link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'tr-link';
+      link.textContent = '#';
+      link.title = 'Copy link to this track';
+      link.setAttribute('aria-label', 'Copy link to ' + tr.title);
+      link.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        copyLink(tr);
+      });
+
       li.appendChild(b);
+      li.appendChild(link);
       frag.appendChild(li);
     });
     el.tracks.appendChild(frag);
@@ -970,6 +1076,9 @@
     wireMediaSession();
     wireInstall();
 
+    // Someone editing the hash, or following a second link in the same tab.
+    window.addEventListener('hashchange', function () { openHash(); });
+
     if (!volumeIsSettable()) {
       var vw = el.volKnob.closest('.knob-wrap');
       if (vw) vw.hidden = true;
@@ -980,9 +1089,7 @@
       navigator.serviceWorker.register('sw.js').catch(function () { /* fine without */ });
     }
 
-    // No autoplay: the stream connects only when the listener presses play.
-    // Metadata is still read so the display shows what is currently on air.
-    startMeta();
+    // No autoplay, and no metadata connection either: both wait for play.
     setStatus('ready');
   }
 
