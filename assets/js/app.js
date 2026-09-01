@@ -236,6 +236,53 @@
 
   /* ── audio ───────────────────────────────────────────── */
 
+  /* ── install ─────────────────────────────────────────
+     Chrome and Edge fire beforeinstallprompt and let the page choose when
+     to ask, so the button appears only once the browser has said it would
+     actually install, never as a control that does nothing. iOS has no
+     such event and installs through the share sheet, so there it says how
+     instead of pretending it can do it. */
+
+  var installEvent = null;
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+  }
+
+  function wireInstall() {
+    // Already an app: nothing to offer.
+    if (isStandalone()) return;
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      installEvent = e;
+      el.installBtn.hidden = false;
+    });
+
+    window.addEventListener('appinstalled', function () {
+      installEvent = null;
+      el.installBtn.hidden = true;
+      setStatus('installed');
+    });
+
+    el.installBtn.addEventListener('click', function () {
+      if (installEvent) {
+        installEvent.prompt();
+        installEvent.userChoice.then(function (c) {
+          if (c && c.outcome === 'accepted') el.installBtn.hidden = true;
+          installEvent = null;
+        });
+        return;
+      }
+      setStatus('share \u25b8 add to home screen');
+    });
+
+    // navigator.standalone exists only on iOS Safari, and is false there
+    // until the page is launched from the home screen.
+    if (window.navigator.standalone === false) el.installBtn.hidden = false;
+  }
+
   /* ── media session ───────────────────────────────────
      Audio keeps playing with the screen off because it is an <audio>
      element; what this adds is being able to control it while it does.
@@ -857,7 +904,7 @@
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'balKnob', 'balRot', 'balLabel', 'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
       'playlistName', 'geoName', 'tracks', 'playlistNote', 'geoList', 'peak', 'status',
-      'footSkin', 'backToRadio'
+      'footSkin', 'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
 
     buildThemeMenu();
@@ -943,6 +990,7 @@
     });
 
     wireMediaSession();
+    wireInstall();
 
     if (!volumeIsSettable()) {
       var vw = el.volKnob.closest('.knob-wrap');

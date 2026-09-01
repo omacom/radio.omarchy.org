@@ -669,6 +669,22 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .status .pulse { width: 6px; height: 6px; animation-duration: 1.1s; }
 .foot-skin { margin-left: auto; color: var(--fg); }
 
+/* Shown only once the browser says it can actually be installed, so it is
+   never a button that does nothing. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ac);
+  border: 1px solid var(--ac);
+  white-space: nowrap;
+}
+.install[hidden] { display: none; }
+.install:hover { background: var(--ac); color: var(--acFg); }
+
 /* ── noscript ────────────────────────────────────────── */
 
 .noscript {
@@ -766,6 +782,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .seek { height: 44px; }
   .picker-btn { min-height: 44px; }
   .back { min-height: 44px; display: inline-flex; align-items: center; }
+  .install { min-height: 44px; }
 
   /* The marquee sat 2px off the line beneath it. */
   .marq-clip { margin: 8px 0 12px; }
