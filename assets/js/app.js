@@ -136,6 +136,7 @@
   var audio, ctx, analyser, panner, freq, metaAbort, dpr = 1;
   var loadedSrc = '';
   var intent = 'idle'; // 'play' | 'pause' | 'stop' — what the listener last asked for
+  var retryN = 0, retryTimer = null, lastProgress = 0;
 
   var el = {};
 
@@ -264,6 +265,58 @@
 
   /* ── audio ───────────────────────────────────────────── */
 
+  /* ── reconnect ───────────────────────────────────────
+     A live stream drops for ordinary reasons: a flaky link, a laptop
+     waking, the server cycling. The element reports that as 'error', as a
+     bare 'ended', or sometimes as nothing at all, which is what the
+     watchdog below is for. Retry only while the listener still wants
+     sound, back off so a server that is down is not hammered, and say so
+     rather than going quiet when the attempts run out. */
+
+  var RETRY_MAX = 8;
+  var STALL_AFTER = 15000; // no progress for this long counts as a drop
+
+  function cancelReconnect() {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    retryN = 0;
+  }
+
+  function reconnectNow() {
+    if (intent !== 'play') return;
+    play(wantedSrc(), S.mode, S.ti);
+    // play() ends on 'connecting…'; say which attempt this is instead.
+    setStatus('reconnecting ' + retryN + '/' + RETRY_MAX + '…');
+  }
+
+  function scheduleReconnect() {
+    if (intent !== 'play' || retryTimer) return;
+    S.playing = false;
+    paintTransport();
+
+    if (retryN >= RETRY_MAX) { setStatus('stream unreachable — press play'); return; }
+
+    // No point spending attempts while the machine knows it is offline. The
+    // online listener picks it up the moment the link comes back.
+    if (navigator.onLine === false) { setStatus('waiting for network'); return; }
+
+    var wait = Math.min(30000, 1000 * Math.pow(2, retryN));
+    retryN++;
+    setStatus('reconnecting in ' + Math.round(wait / 1000) + 's (' + retryN + '/' + RETRY_MAX + ')');
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      reconnectNow();
+    }, wait);
+  }
+
+  // Covers the silent case: still nominally playing, but no audio has
+  // arrived for a while and no event ever fired.
+  function watchdog() {
+    if (intent !== 'play' || retryTimer) return;
+    if (!audio || audio.paused) return;
+    if (Date.now() - lastProgress < STALL_AFTER) return;
+    scheduleReconnect();
+  }
+
   function buildAudio() {
     var a = new Audio();
     a.preload = 'none';
@@ -271,28 +324,34 @@
     a.volume = S.vol;
 
     a.addEventListener('timeupdate', function () {
+      lastProgress = Date.now();
       S.cur = a.currentTime || 0;
       S.dur = isFinite(a.duration) ? a.duration : 0;
       paintClock();
     });
-    a.addEventListener('ended', next);
+    a.addEventListener('ended', function () {
+      // A live stream has no end; reaching one means the connection went.
+      if (S.mode === 'radio') scheduleReconnect();
+      else next();
+    });
     a.addEventListener('playing', function () {
+      cancelReconnect();
+      lastProgress = Date.now();
       S.playing = true;
       setStatus(S.mode === 'radio' ? 'streaming live' : 'playing');
       paintTransport();
     });
     a.addEventListener('pause', function () {
       // pause fires asynchronously, after stop() has already set its status.
+      // Only a deliberate pause calls off a reconnect; a dropped stream also
+      // pauses the element, and there intent is still 'play'.
+      if (intent === 'pause' || intent === 'stop') cancelReconnect();
       S.playing = false;
       setStatus(intent === 'stop' ? 'stopped' : 'paused');
       paintTransport();
     });
     a.addEventListener('waiting', function () { setStatus('buffering…'); });
-    a.addEventListener('error', function () {
-      S.playing = false;
-      setStatus('stream unreachable');
-      paintTransport();
-    });
+    a.addEventListener('error', function () { scheduleReconnect(); });
 
     audio = a;
   }
@@ -340,14 +399,18 @@
     audio.src = src;
     audio.load();
     var p = audio.play();
-    // AbortError just means a later pause/load superseded this play call.
+    // NotAllowedError is the autoplay block, the only rejection the listener
+    // can actually act on. AbortError just means a later pause/load
+    // superseded this call, and a source that will not load rejects here
+    // too, where the reconnect path is the one that should speak.
     if (p && p.catch) p.catch(function (err) {
-      if (!err || err.name !== 'AbortError') setStatus('press play to start');
+      if (err && err.name === 'NotAllowedError') setStatus('press play to start');
     });
     S.mode = mode;
     S.ti = ti;
     S.cur = 0;
     S.dur = 0;
+    lastProgress = Date.now();
     setStatus('connecting…');
     paintAll();
   }
@@ -362,7 +425,7 @@
   }
 
   function toggle() {
-    if (!audio.paused) { intent = 'pause'; audio.pause(); return; }
+    if (!audio.paused) { intent = 'pause'; cancelReconnect(); audio.pause(); return; }
     intent = 'play';
     var want = wantedSrc();
     // Nothing loaded yet, or the station changed while stopped: connect fresh.
@@ -374,6 +437,7 @@
 
   function stop() {
     intent = 'stop';
+    cancelReconnect();
     audio.pause();
     try { audio.currentTime = 0; } catch (e) { /* live stream */ }
     loadedSrc = '';
@@ -394,6 +458,7 @@
   }
 
   function pickStation(i) {
+    cancelReconnect();
     var wasPlaying = !audio.paused;
     S.st = i;
     S.tracks = [];
@@ -827,6 +892,16 @@
     loadTracks();
     loadStats();
     setInterval(loadStats, STATS_INTERVAL);
+    setInterval(watchdog, 5000);
+
+    window.addEventListener('online', function () {
+      if (intent !== 'play' || (audio && !audio.paused)) return;
+      cancelReconnect(); // a fresh link earns a fresh budget
+      reconnectNow();
+    });
+    window.addEventListener('offline', function () {
+      if (intent === 'play') setStatus('waiting for network');
+    });
 
     // No autoplay: the stream connects only when the listener presses play.
     // Metadata is still read so the display shows what is currently on air.
