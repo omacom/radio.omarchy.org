@@ -41,18 +41,7 @@
   ];
 
   var STATIONS = [
-    { slug: 'omarchy',     name: 'Omarchy',           tag: 'the house station' },
-    { slug: 'lofi',        name: 'Lofi',              tag: 'beats to compile to' },
-    { slug: 'synthwave',   name: 'Synthwave',         tag: 'neon and chrome' },
-    { slug: 'edm',         name: 'EDM',               tag: 'peak time energy' },
-    { slug: 'ncs',         name: 'NCS',               tag: 'no copyright sounds' },
-    { slug: 'ncs-chill',   name: 'NCS Chill',         tag: 'easy rotation' },
-    { slug: 'ncs-house',   name: 'NCS House',         tag: 'four on the floor' },
-    { slug: 'ncs-dnb',     name: 'NCS Drum & Bass',   tag: '174 bpm' },
-    { slug: 'ncs-dubstep', name: 'NCS Dubstep',       tag: 'heavy wobble' },
-    { slug: 'ncs-phonk',   name: 'NCS Phonk',         tag: 'memphis drift' },
-    { slug: 'ncs-trap',    name: 'NCS Trap',          tag: '808 heavy' },
-    { slug: 'ncs-pop',     name: 'NCS Pop',           tag: 'bright hooks' }
+    { slug: 'omarchy',     name: 'Omarchy',           tag: 'the house station' }
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -249,7 +238,8 @@
       frag.appendChild(li);
     });
     el.stationList.appendChild(frag);
-    el.stationCount.textContent = STATIONS.length + ' streams';
+    el.stationCount.textContent = STATIONS.length +
+      (STATIONS.length === 1 ? ' stream' : ' streams');
   }
 
   function paintStations() {
@@ -395,12 +385,12 @@
 
   function next() {
     if (S.mode === 'track' && S.tracks.length) playTrack((S.ti + 1) % S.tracks.length);
-    else pickStation((S.st + 1) % STATIONS.length);
+    else if (STATIONS.length > 1) pickStation((S.st + 1) % STATIONS.length);
   }
 
   function prev() {
     if (S.mode === 'track' && S.tracks.length) playTrack((S.ti - 1 + S.tracks.length) % S.tracks.length);
-    else pickStation((S.st - 1 + STATIONS.length) % STATIONS.length);
+    else if (STATIONS.length > 1) pickStation((S.st - 1 + STATIONS.length) % STATIONS.length);
   }
 
   function pickStation(i) {
