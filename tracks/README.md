@@ -30,6 +30,7 @@ That is the whole entry. There is no id to invent and no count to bump.
 | `file` | yes | filename in this folder, exactly as on disk |
 | `album` | no | shown in place of the artist while playing |
 | `url` | no | full URL for a track hosted elsewhere, used instead of `file` |
+| `explicit` | no | `true` shows an EXPLICIT badge beside the title |
 
 Spaces, accents and apostrophes in `file` are fine. The player encodes the
 name when it builds the URL, so write it exactly as the file is named and do

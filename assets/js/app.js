@@ -835,10 +835,17 @@
       b.className = 'track' + (on ? ' is-on' : '');
       b.innerHTML =
         '<span class="tr-n"></span>' +
-        '<span class="tr-t"><span class="tr-title"></span><span class="tr-artist"></span></span>' +
+        '<span class="tr-t">' +
+          '<span class="tr-line">' +
+            '<span class="tr-title"></span>' +
+            '<span class="tr-ex" hidden>explicit</span>' +
+          '</span>' +
+          '<span class="tr-artist"></span>' +
+        '</span>' +
         '<span class="tr-s"></span>';
       b.querySelector('.tr-n').textContent = String(i + 1).padStart(2, '0');
       b.querySelector('.tr-title').textContent = tr.title;
+      b.querySelector('.tr-ex').hidden = !tr.explicit;
       b.querySelector('.tr-artist').textContent = tr.artist;
       b.querySelector('.tr-s').textContent = on ? (S.playing ? 'playing' : 'paused') : '';
       b.addEventListener('click', function () { playTrack(i); });

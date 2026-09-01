@@ -589,6 +589,29 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .tr-t { min-width: 0; }
 
+/* Title line, so an advisory badge can sit beside the title without
+   pushing it onto its own row. The title keeps the ellipsis. */
+.tr-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tr-line .tr-title { min-width: 0; }
+
+.tr-ex {
+  flex: none;
+  font-size: 8px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  line-height: 1.5;
+  padding: 0 4px;
+  color: var(--c2);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+}
+.track.is-on .tr-ex { color: var(--ac); border-color: var(--ac); }
+
 .tr-title {
   display: block;
   font-family: var(--sans);
@@ -724,7 +747,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
    so 500 is a real weight rather than a synthesised one. */
 .wordmark, .home, .live-now, .net-sum, .picker-btn, .menu button,
 .panel-title, .panel-meta, .lcd-top, .artist,
-.tile-l, .tr-head, .tr-s, .tr-artist, .knob-lbl, .back,
+.tile-l, .tr-head, .tr-s, .tr-artist, .tr-ex, .knob-lbl, .back,
 .panel-note, .geo-name, .foot, .status {
   font-weight: var(--wt-small);
 }
