@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Omarchy Radio — social card source</title>
+<link rel="stylesheet" href="../assets/css/fonts.css">
+<style>
+/* Social card source. Rendered to assets/images/opengraph*.png by
+   tools/render-og.sh. Palette and type mirror the green skin in
+   assets/css/style.css so the cards cannot drift from the site.
+
+   The card is the name and the waves. Nothing else: taglines and genre
+   lists read as noise at the size a timeline actually shows this. */
+
+:root {
+  --bg: #0a0b0a;
+  --fg: #e7e6e0;
+  --ac: #5ef2a0;
+  --bd: #23261f;
+  --lcd: #050505;
+  --lcdfont: "VT323", ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+p { margin: 0; }
+
+body {
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mirrors the canvas dot field and centre glow drawn in app.js drawBg(). */
+.stage {
+  position: relative;
+  width: 1200px;
+  height: 630px;
+  padding: 32px;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(94,242,160,.06), transparent 62%),
+    radial-gradient(circle, rgba(94,242,160,.085) 1px, transparent 1.4px) 0 0 / 24px 24px,
+    var(--bg);
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 48px 44px;
+  background: var(--lcd);
+  border: 1px solid var(--bd);
+}
+
+.scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,.30) 0 2px, transparent 2px 4px);
+}
+
+.mid {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.logo { display: block; color: var(--ac); width: 68px; height: 68px; }
+
+.name {
+  font-family: var(--lcdfont);
+  font-size: 152px;
+  line-height: .92;
+  letter-spacing: .02em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--ac);
+  white-space: nowrap;
+}
+.name .br { display: none; }
+
+.vis {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  width: 100%;
+  height: 132px;
+}
+.vis span { flex: 1; background: var(--ac); min-height: 3px; }
+
+/* ── formats ──────────────────────────────────────────
+   wide  1200x630   1.91:1  og:image, twitter:image
+   16x9  1200x675           schema.org image
+   4x3   1200x900           schema.org image
+   1x1   1200x1200          schema.org image, square crops
+   Taller ratios are re-composed, not letterboxed: the name breaks to two
+   lines and grows, rather than the art floating in dead space. */
+
+body[data-f="16x9"], body[data-f="16x9"] .stage { height: 675px; }
+body[data-f="4x3"],  body[data-f="4x3"]  .stage { height: 900px; }
+body[data-f="1x1"],  body[data-f="1x1"]  .stage { height: 1200px; }
+
+body[data-f="16x9"] .vis { height: 150px; }
+
+body[data-f="4x3"] .name,
+body[data-f="1x1"] .name { white-space: normal; }
+body[data-f="4x3"] .name .br,
+body[data-f="1x1"] .name .br { display: block; height: 0; }
+
+body[data-f="4x3"] .logo { width: 84px; height: 84px; }
+body[data-f="4x3"] .name { font-size: 178px; }
+body[data-f="4x3"] .vis { height: 200px; }
+
+body[data-f="1x1"] .logo { width: 96px; height: 96px; }
+body[data-f="1x1"] .name { font-size: 210px; }
+body[data-f="1x1"] .vis { height: 260px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="app">
+    <div class="scan"></div>
+
+    <div class="mid">
+    <div class="lockup">
+      <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="currentColor"><path d="M0 0h15v1h-15z"/><path d="M0 1h1v14h-1z"/><path d="M7 1h1v2h-1z"/><path d="M14 1h1v14h-1z"/><path d="M2 2h5v1h-5z"/><path d="M11 2h2v1h-2z"/><path d="M2 3h1v10h-1z"/><path d="M12 3h1v10h-1z"/><path d="M1 7h1v1h-1z"/><path d="M3 12h9v1h-9z"/><path d="M7 13h1v2h-1z"/><path d="M1 14h6v1h-6z"/><path d="M9 14h5v1h-5z"/></svg>
+      <p class="name">Omarchy<span class="br"></span> Radio</p>
+    </div>
+    </div>
+
+    <div class="vis" id="vis"></div>
+  </div>
+</div>
+
+<script>
+/* Deterministic spectrum: a musical-looking curve, not noise, so a
+   regenerated card is byte-identical to the one it replaces. */
+(function () {
+  var f = (location.search.match(/[?&]f=([\w]+)/) || [])[1] || 'wide';
+  document.body.setAttribute('data-f', f);
+
+  var n = f === '1x1' ? 44 : 56, out = '';
+  for (var i = 0; i < n; i++) {
+    var x = i / (n - 1);
+    var tilt = 1 - 0.34 * Math.pow(x, 1.3);           // gentle roll-off, never dies out
+    var wob = Math.sin(i * 1.7) * 0.17 + Math.sin(i * 0.53) * 0.15
+            + Math.sin(i * 3.1) * 0.09 + Math.sin(i * 0.31) * 0.10;
+    var h = Math.max(0.10, Math.min(1, tilt * (0.60 + wob) + 0.16));
+    out += '<span style="height:' + (h * 100).toFixed(1) + '%"></span>';
+  }
+  document.getElementById('vis').innerHTML = out;
+})();
+</script>
+
+</body>
+</html>
