@@ -140,6 +140,10 @@
   var audio, ctx, analyser, freq, metaAbort, dpr = 1;
   var loadedSrc = '';
   var intent = 'idle'; // 'play' | 'pause' | 'stop' — what the listener last asked for
+  var gestured = false; // the listener has touched the page at least once
+  var wiring = false; // an audio graph waiting on its context to start
+  var armed = null; // an autoplay the browser refused, waiting for a gesture
+  var hashPending = false; // a link named a track; the manifest decides which
   var retryN = 0, retryTimer = null, lastProgress = 0;
 
   var el = {};
@@ -400,6 +404,7 @@
     });
     a.addEventListener('playing', function () {
       cancelReconnect();
+      armed = null; // whatever was owed, it is playing now
       lastProgress = Date.now();
       S.playing = true;
       setStatus(S.mode === 'radio' ? 'streaming live' : 'playing');
@@ -409,7 +414,7 @@
       // pause fires asynchronously, after stop() has already set its status.
       // Only a deliberate pause calls off a reconnect; a dropped stream also
       // pauses the element, and there intent is still 'play'.
-      if (intent === 'pause' || intent === 'stop') { cancelReconnect(); stopMeta(); }
+      if (intent === 'pause' || intent === 'stop') { cancelReconnect(); stopMeta(); armed = null; }
       S.playing = false;
       setStatus(intent === 'stop' ? 'stopped' : 'paused');
       paintTransport();
@@ -439,23 +444,46 @@
     }
   }
 
+  /* Connecting the element to an analyser takes its sound with it: from then
+     on the deck is only audible if the context is running. A context built
+     without a user gesture starts suspended and may refuse to resume, so the
+     element is handed over only once the context is known to be running.
+     Until then the simulated bars stand in, which costs a spectrum rather
+     than the station. */
   function wireGraph() {
-    if (ctx || !audio) return;
+    if (ctx || wiring || !audio) return;
+    if (!gestured) return; // nothing to spend on a resume yet
     try {
       var C = window.AudioContext || window.webkitAudioContext;
       if (!C) return;
       var c = new C();
-      var src = c.createMediaElementSource(audio);
-      var an = c.createAnalyser();
-      an.fftSize = 512;
-      an.smoothingTimeConstant = 0.75;
-      src.connect(an);
-      an.connect(c.destination);
-      ctx = c;
-      analyser = an;
-      freq = new Uint8Array(an.frequencyBinCount);
-      simVis = false;
+      wiring = true;
+
+      var give_up = function () {
+        wiring = false;
+        simVis = true;
+        if (c.close) c.close();
+      };
+
+      var take_over = function () {
+        if (c.state !== 'running') { give_up(); return; }
+        var src = c.createMediaElementSource(audio);
+        var an = c.createAnalyser();
+        an.fftSize = 512;
+        an.smoothingTimeConstant = 0.75;
+        src.connect(an);
+        an.connect(c.destination);
+        ctx = c;
+        analyser = an;
+        freq = new Uint8Array(an.frequencyBinCount);
+        simVis = false;
+        wiring = false;
+      };
+
+      if (c.state === 'running') take_over();
+      else c.resume().then(take_over, give_up);
     } catch (e) {
+      wiring = false;
       simVis = true;
     }
   }
@@ -480,7 +508,7 @@
     // superseded this call, and a source that will not load rejects here
     // too, where the reconnect path is the one that should speak.
     if (p && p.catch) p.catch(function (err) {
-      if (err && err.name === 'NotAllowedError') setStatus('press play to start');
+      if (err && err.name === 'NotAllowedError') arm(src, mode, ti);
     });
     S.mode = mode;
     S.ti = ti;
@@ -519,6 +547,8 @@
     intent = 'stop';
     cancelReconnect();
     stopMeta();
+    // Pressing stop on an autoplay that never got permission still means no.
+    armed = null;
     S.icyTitle = '';
     audio.pause();
     try { audio.currentTime = 0; } catch (e) { /* live stream */ }
@@ -538,6 +568,63 @@
     if (S.mode === 'track' && S.tracks.length) playTrack((S.ti - 1 + S.tracks.length) % S.tracks.length);
   }
 
+  /* ── autoplay ────────────────────────────────────────
+     Joining the site is the tune-in: the deck should already be playing by
+     the time it has finished drawing. Browsers only grant an audible
+     autoplay to a site the listener has engaged with before, so a first
+     visit is refused outright. Rather than leave them looking at a dead
+     deck, remember what was owed and spend their next gesture on it,
+     wherever on the page it lands. */
+
+  function arm(src, mode, ti) {
+    armed = { src: src, mode: mode, ti: ti };
+    // playRadio() opened the metadata connection on the way in, and that is a
+    // full stream the server counts as a listener. Nobody is listening yet.
+    stopMeta();
+    setStatus(window.matchMedia('(pointer: coarse)').matches
+      ? 'tap anywhere to start'
+      : 'click anywhere to start');
+  }
+
+  // A gesture that belongs to something else: a control whose own handler is
+  // about to run, the space binding, or a combination the browser will not
+  // count as engagement anyway.
+  function spokenFor(e) {
+    if (e.type === 'keydown') {
+      return e.code === 'Space' || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Escape';
+    }
+    return !!(e.target && e.target.closest && e.target.closest('button, a, [role="slider"]'));
+  }
+
+  function firstGesture(e) {
+    if (!gestured) {
+      gestured = true;
+      // Also the first chance at a real spectrum: the audio graph needs a
+      // context that is allowed to run, and this gesture is what buys one.
+      wireGraph();
+    }
+    if (!armed || spokenFor(e)) return;
+    var owed = armed;
+    armed = null;
+    if (intent === 'pause' || intent === 'stop') return; // they already said no
+    play(owed.src, owed.mode, owed.ti);
+    if (owed.mode === 'radio') startMeta();
+  }
+
+  function wireGestures() {
+    // Capture, so this runs before a control's own handler decides the
+    // gesture was meant for it.
+    ['pointerdown', 'touchstart', 'keydown'].forEach(function (t) {
+      document.addEventListener(t, firstGesture, true);
+    });
+  }
+
+  // A link that names a track has to wait for the manifest to say which one;
+  // the live stream has nothing to look up, so it starts here.
+  function tuneIn() {
+    if ((location.hash || '').length > 1) { hashPending = true; return; }
+    playRadio();
+  }
 
   /* ── network ─────────────────────────────────────────── */
 
@@ -623,11 +710,15 @@
       S.tracks = ((j && j.tracks) || []).map(resolveTrack);
       assignSlugs(S.tracks);
       paintTracks();
-      // A link that names a track opens on that track.
-      openHash();
+      // A link that names a track opens on that track, and this is the first
+      // moment it can: the slugs come from the manifest. A slug that matches
+      // nothing — a renamed track, a typo — is no reason to sit silent.
+      if (!openHash() && hashPending) playRadio();
+      hashPending = false;
     }).catch(function () {
       S.tracks = [];
       paintTracks();
+      if (hashPending) { hashPending = false; playRadio(); }
     });
   }
 
@@ -751,10 +842,9 @@
   }
 
   /* ── deep links ──────────────────────────────────────
-     Every track has a URL. Opening one selects that track and asks it to
-     play; a browser that wants a gesture first will say so rather than
-     starting on its own. The address bar follows whatever is playing, so
-     the link worth sharing is always the one already in it. */
+     Every track has a URL, and opening one plays that track rather than the
+     live stream. The address bar follows whatever is playing, so the link
+     worth sharing is always the one already in it. */
 
   function slugify(str) {
     var s = String(str || '');
@@ -1010,6 +1100,7 @@
     applyTheme();
     buildBars();
     buildAudio();
+    wireGestures();
 
     el.themeBtn.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -1066,6 +1157,7 @@
     measureFit();
     requestAnimationFrame(frame);
 
+    tuneIn();
     loadTracks();
     loadStats();
     setInterval(loadStats, STATS_INTERVAL);
@@ -1095,9 +1187,6 @@
       // Nothing here depends on it, so a failure is not worth reporting.
       navigator.serviceWorker.register('sw.js').catch(function () { /* fine without */ });
     }
-
-    // No autoplay, and no metadata connection either: both wait for play.
-    setStatus('ready');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
