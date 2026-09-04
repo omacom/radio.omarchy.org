@@ -17,6 +17,7 @@
   var CANVAS_W = 1180;
   var CANVAS_H = 880;
   var STORE_KEY = 'omarchy-radio-skin';
+  var STORE_TRACKS = 'omarchy-radio-playlist';
 
   var SKINS = [
     { name: 'green',            bg: '#0a0b0a', fg: '#e7e6e0', ac: '#5ef2a0', bd: '#23261f' },
@@ -144,6 +145,7 @@
   var wiring = false; // an audio graph waiting on its context to start
   var armed = null; // an autoplay the browser refused, waiting for a gesture
   var hashPending = false; // a link named a track; the manifest decides which
+  var keptTracks = false; // the playlist on screen is the copy from last visit
   var retryN = 0, retryTimer = null, lastProgress = 0;
 
   var el = {};
@@ -619,11 +621,19 @@
     });
   }
 
-  // A link that names a track has to wait for the manifest to say which one;
-  // the live stream has nothing to look up, so it starts here.
+  /* A link that names a track has to know which one, and the slugs come from
+     the manifest, so a fetch stood between the arrival and its sound. That is
+     silence on the one visit that asked for a particular song, and on engines
+     whose gesture expires it is the permission gone with it. The copy kept
+     from the last visit answers now instead; loadTracks() confirms it a
+     moment later. The live stream has nothing to look up either way. */
   function tuneIn() {
-    if ((location.hash || '').length > 1) { hashPending = true; return; }
-    playRadio();
+    var slug = (location.hash || '').replace(/^#/, '');
+    if (!slug) { playRadio(); return; }
+    var kept = readManifest();
+    if (kept) { applyManifest(kept); keptTracks = true; }
+    if (openHash()) return;
+    hashPending = true; // nothing kept, or kept from before this track existed
   }
 
   /* ── network ─────────────────────────────────────────── */
@@ -702,22 +712,52 @@
     }).catch(function () { /* stats optional */ });
   }
 
+  function applyManifest(j) {
+    S.tracks = ((j && j.tracks) || []).map(resolveTrack);
+    assignSlugs(S.tracks);
+    paintTracks();
+  }
+
+  function readManifest() {
+    try { return JSON.parse(localStorage.getItem(STORE_TRACKS)); } catch (e) { return null; }
+  }
+
+  function saveManifest(j) {
+    try { localStorage.setItem(STORE_TRACKS, JSON.stringify(j)); } catch (e) { /* private mode */ }
+  }
+
   function loadTracks() {
     fetch(TRACKS_MANIFEST).then(function (r) {
       if (!r.ok) throw new Error('no playlist');
       return r.json();
     }).then(function (j) {
-      S.tracks = ((j && j.tracks) || []).map(resolveTrack);
-      assignSlugs(S.tracks);
-      paintTracks();
-      // A link that names a track opens on that track, and this is the first
-      // moment it can: the slugs come from the manifest. A slug that matches
-      // nothing — a renamed track, a typo — is no reason to sit silent.
-      if (!openHash() && hashPending) playRadio();
-      hashPending = false;
+      // What tuneIn() started, if anything, named by the one thing that
+      // survives a reordering.
+      var open = S.mode === 'track' && S.tracks[S.ti] ? S.tracks[S.ti].slug : '';
+      applyManifest(j);
+      saveManifest(j);
+      keptTracks = false;
+
+      // A link that names a track opens on that track, and with nothing kept
+      // this is the first moment it can. A slug that matches nothing — a
+      // renamed track, a typo — is no reason to sit silent.
+      if (hashPending) {
+        hashPending = false;
+        if (!openHash()) playRadio();
+        return;
+      }
+
+      // The kept copy picked the track; the real playlist gets the last word
+      // on where it sits, and on whether it is still there at all.
+      if (open) {
+        var i = indexOfSlug(open);
+        if (i < 0) { playRadio(); return; }
+        if (i !== S.ti) { S.ti = i; paintAll(); }
+      }
     }).catch(function () {
-      S.tracks = [];
-      paintTracks();
+      // Offline, or the manifest is gone. Whatever was kept still plays; with
+      // nothing kept the playlist is simply empty.
+      if (!keptTracks) { S.tracks = []; paintTracks(); }
       if (hashPending) { hashPending = false; playRadio(); }
     });
   }
