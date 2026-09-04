@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "title": "Omarchy Radio — live demo",
+  "description": "Recorded public source excerpts replayed at fixed arrival times. Models, TTS and playout run live. Not a live news feed.",
+  "referenceTime": "2026-09-04T21:00:00Z",
+  "duration": 410,
+  "files": ["Patrick Johnson - David Picked It.mp3", "Corey - prOdiMARCHY.mp3"],
+  "arrivals": [
+    {
+      "id": "arrival-1",
+      "at": 0,
+      "story": {
+        "title": "Give foot its own touchpad scroll factor (#9793)",
+        "text": "Give foot its own touchpad scroll factor (#9793) foot only applies scrollback.multiplier to discrete wheel clicks, so precise touchpad scrolling ignores it and crawls at the group's 1.5 factor. Split foot out at 2.0 to match how the other terminals feel. Co-authored-by: Claude Fable 5",
+        "author": "dhh",
+        "url": "https://github.com/omacom/omarchy/commit/493067741e081c3b09082da6bfd51e99ec24ef00",
+        "publishedAt": "2026-09-04T15:59:32.000Z",
+        "kind": "maintainer"
+      }
+    },
+    {
+      "id": "arrival-2",
+      "at": 45,
+      "story": {
+        "title": "v4.0.2",
+        "text": "This is an additional set of security fixes that were validated and examined by the [Omarchy Security team](https://omarchy.org/teams/#security). If you ever find security issues with Omarchy, please follow the responsible disclosure procedure on [omarchy.org/security](https://omarchy.org/security/). 🙏 You can upgrade existing machines with `Update > Omarchy`. Install on new machines with the ISO: - Download: [https://iso.omarchy.org/omarchy-4.0.2.iso](https://iso.omarchy.org/omarchy-4.0.2.iso) - SHA256: 2ef8e624aa1bec7e277e28056b8535a6c9373ba48d7ede3f1a01cb6d2373cfb8 ## Improvements - Repair legacy paths and privileged files from retired installers by @acrogenesis - Skip Chromium's new first-run EULA by @hjanuschka - Improve Apple display brightness detection reliability by @bastidotnet - Point the RC channel to the dedicated release candidate repository by @ryanrhughes - Prevent the desktop bar visibility toggle from becoming unresponsive by @ryanrhughes - Improve automated test suite reliability by @ryanrhughes, @Skeptomenos ## Fixes - Fix shell injection in theme and application installers by @mdisec, @Adolanium - Fix Codex usage collection on version 0.149 by @orienw - Fix mi",
+        "author": "Omarchy release notes",
+        "url": "https://github.com/omacom/omarchy/releases/tag/v4.0.2",
+        "publishedAt": "2026-08-31T03:42:33.000Z",
+        "kind": "release"
+      }
+    }
+  ]
+}

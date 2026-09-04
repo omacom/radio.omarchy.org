@@ -1025,3 +1025,8 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .pulse { animation: none; }
   * { transition: none !important; }
 }
+
+/* The live DJ control follows the existing quiet text-button treatment. */
+.station-source { display: inline-flex; align-items: center; gap: .8em; }
+.dj-toggle { font: inherit; letter-spacing: inherit; padding: 2px 5px; }
+.dj-toggle[hidden] { display: none; }

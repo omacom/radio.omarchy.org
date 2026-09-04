@@ -1,0 +1,22 @@
+services:
+  station:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      BIND: 0.0.0.0
+      PORT: 8787
+      RADIO_DATA: /app/var
+    ports:
+      - "127.0.0.1:8788:8787"
+    volumes:
+      - station-data:/app/var
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10m
+      retries: 3
+    stop_grace_period: 10s
+volumes:
+  station-data:

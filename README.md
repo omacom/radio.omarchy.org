@@ -25,3 +25,15 @@ Drop the MP3 in `tracks/`, add three lines to `tracks/playlist.json`, open a pul
 The playlist panel has a second list: **podcast**, which is [Omarchy Stories](https://omarchystories.org), the show the community makes about running this desktop. Nothing about it lives in this repo. The player reads the show's RSS feed when it loads, so an episode appears here because it was published, not because anybody remembered to add it. Pressing one plays it, the row opens to show its chapters and what it is about, and pressing a chapter jumps there. Every episode has its own link, `radio.omarchy.org/#stories/<episode>`, the same way a song does.
 
 One thing to know if the list is ever empty: a browser will only read a feed from another site if that site says it may, with an `Access-Control-Allow-Origin` header on the response. Riverside, who host the show, send that header on the preflight but not on the feed itself, and a plain `GET` never asks for a preflight — so Chrome refuses the read and the panel says the feed would not load. Nothing in this repo can fix that from the outside; it takes either Riverside sending the header or a host we control passing the feed through with one. The single line to repoint is `STORIES_FEED` at the top of [assets/js/app.js](assets/js/app.js). The player keeps the last list it managed to read, so once it works, it keeps working offline too.
+
+## Agentic station backend
+
+This fork adds a shared producer and presenter around the repository's music. The existing player adds a DJ toggle for synchronized live stems.
+
+Run `npm start` with Node 24, FFmpeg, and util-linux installed. Configuration, provider setup, transport details, and verification are in [the station guide](docs/station.md).
+
+The [track-sheet primitive](docs/track-sheets.md) supports reviewed cues, sourced metadata, sections, and word-level lyric timestamps. Existing tracks can receive analysis backfills without changing contributions.
+
+Static-only hosting retains the original live stream. The shared backend requires the Node service and persistent storage.
+
+The [demo guide](docs/demo.md) includes timed source replay and prerecorded station furniture. The short take runs locally with the same live providers and playout.

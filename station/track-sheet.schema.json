@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Omarchy Radio track sheet v1",
+  "description": "Seconds from the first decoded source sample. Silence or missing words never authorize a mic window.",
+  "type": "object",
+  "required": [
+    "version",
+    "sha256",
+    "reviewed",
+    "metadata",
+    "lyrics",
+    "sections",
+    "vocals",
+    "windows",
+    "ending"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "reviewed": { "type": "boolean" },
+    "reviewedBy": { "type": "string", "minLength": 1 },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "ending": { "enum": ["unknown", "cold", "fade", "sustain"] },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "pronunciation": { "type": "string", "maxLength": 500 },
+        "facts": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "required": ["text", "source"],
+            "properties": {
+              "text": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "lyrics": {
+      "type": "object",
+      "required": ["coverage", "words"],
+      "properties": {
+        "coverage": { "enum": ["unknown", "partial", "complete"] },
+        "words": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/interval" },
+              {
+                "type": "object",
+                "required": ["text"],
+                "properties": {
+                  "text": { "type": "string", "maxLength": 200 },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "line": { "type": "integer", "minimum": 0 }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/interval" },
+          {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "intro",
+                  "verse",
+                  "chorus",
+                  "bridge",
+                  "instrumental",
+                  "outro"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "vocals": { "type": "array", "items": { "$ref": "#/$defs/interval" } },
+    "windows": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/interval" },
+          {
+            "type": "object",
+            "required": ["kind", "confidence"],
+            "properties": {
+              "kind": { "enum": ["intro", "instrumental", "outro"] },
+              "confidence": { "enum": ["candidate", "reviewed"] },
+              "evidence": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "description": "Tool name, model version, analysis timestamp, loudness, silence and vocal evidence. Advisory only."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "reviewed": { "const": true } } },
+      "then": { "required": ["reviewedBy", "reviewedAt"] }
+    }
+  ],
+  "$defs": {
+    "interval": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

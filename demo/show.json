@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "title": "Omarchy Radio — live demo",
+  "description": "Recorded public source excerpts replayed at fixed arrival times. Models, TTS and playout run live. Not a live news feed.",
+  "referenceTime": "2026-09-04T21:00:00Z",
+  "duration": 960,
+  "files": [
+    "Patrick Johnson - David Picked It.mp3",
+    "Corey - prOdiMARCHY.mp3",
+    "Nick Hamze - I Wanted Arch, Not a Second Job.mp3"
+  ],
+  "arrivals": [
+    {
+      "id": "arrival-1",
+      "at": 0,
+      "story": {
+        "title": "Give foot its own touchpad scroll factor (#9793)",
+        "text": "Give foot its own touchpad scroll factor (#9793) foot only applies scrollback.multiplier to discrete wheel clicks, so precise touchpad scrolling ignores it and crawls at the group's 1.5 factor. Split foot out at 2.0 to match how the other terminals feel. Co-authored-by: Claude Fable 5",
+        "author": "dhh",
+        "url": "https://github.com/omacom/omarchy/commit/493067741e081c3b09082da6bfd51e99ec24ef00",
+        "publishedAt": "2026-09-04T15:59:32.000Z",
+        "kind": "maintainer"
+      }
+    },
+    {
+      "id": "arrival-2",
+      "at": 210,
+      "story": {
+        "title": "v4.0.2",
+        "text": "This is an additional set of security fixes that were validated and examined by the [Omarchy Security team](https://omarchy.org/teams/#security). If you ever find security issues with Omarchy, please follow the responsible disclosure procedure on [omarchy.org/security](https://omarchy.org/security/). 🙏 You can upgrade existing machines with `Update > Omarchy`. Install on new machines with the ISO: - Download: [https://iso.omarchy.org/omarchy-4.0.2.iso](https://iso.omarchy.org/omarchy-4.0.2.iso) - SHA256: 2ef8e624aa1bec7e277e28056b8535a6c9373ba48d7ede3f1a01cb6d2373cfb8 ## Improvements - Repair legacy paths and privileged files from retired installers by @acrogenesis - Skip Chromium's new first-run EULA by @hjanuschka - Improve Apple display brightness detection reliability by @bastidotnet - Point the RC channel to the dedicated release candidate repository by @ryanrhughes - Prevent the desktop bar visibility toggle from becoming unresponsive by @ryanrhughes - Improve automated test suite reliability by @ryanrhughes, @Skeptomenos ## Fixes - Fix shell injection in theme and application installers by @mdisec, @Adolanium - Fix Codex usage collection on version 0.149 by @orienw - Fix mi",
+        "author": "Omarchy release notes",
+        "url": "https://github.com/omacom/omarchy/releases/tag/v4.0.2",
+        "publishedAt": "2026-08-31T03:42:33.000Z",
+        "kind": "release"
+      }
+    },
+    {
+      "id": "arrival-3",
+      "at": 500,
+      "story": {
+        "title": "Omarchy Top-Bar Intermittent Mouse Click Failure — Forensic Investigation Report",
+        "text": "### System details Ryzen 5600x, Nvidia 3060 12gb, with 32 gb of ram ### What's wrong? We investigated this issue earlier and found that the problem is intermittent: the top-bar widgets can remain visible while their mouse clicks stop working. Restarting the Omarchy shell or changing the bar position restores the functionality. I rechecked the status bar and Quickshell implementation more closely, and found another possible cause that seems worth investigating. The current suspicion is related to the lifecycle of ModuleList / ModuleSlot instances. The bar can rebuild/recreate its modules when the configuration or bar position changes. The cent",
+        "author": "Rambo176",
+        "url": "https://github.com/omacom/omarchy/issues/10122",
+        "publishedAt": "2026-09-04T06:08:25.000Z",
+        "kind": "community"
+      }
+    }
+  ]
+}

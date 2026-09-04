@@ -173,7 +173,8 @@
           <div class="scan" aria-hidden="true"></div>
           <div class="lcd-top">
             <span id="stationLabel">omarchy &middot; omarchy</span>
-            <span id="srcLabel">&#9673; live stream</span>
+            <span class="station-source"><button type="button" class="back dj-toggle" id="djToggle" aria-label="DJ presentation" aria-pressed="true" hidden>DJ on</button>
+            <span id="srcLabel">&#9673; live stream</span></span>
           </div>
           <div class="marq-clip">
             <div class="marq" id="marq">
@@ -296,6 +297,7 @@
   </div>
 </noscript>
 
-<script src="assets/js/app.js" defer></script>
+<script src="station-config.js"></script>
+<script type="module" src="assets/js/app.js"></script>
 </body>
 </html>

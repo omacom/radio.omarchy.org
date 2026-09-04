@@ -1,0 +1,11 @@
+{
+  "bed": "bed-30.mp3",
+  "sting": "jingle.mp3",
+  "idents": [
+    { "file": "ident-1.mp3", "text": "Omarchy Radio. Made by the community." },
+    {
+      "file": "ident-2.mp3",
+      "text": "Your desktop. Your music. Omarchy Radio."
+    }
+  ]
+}
