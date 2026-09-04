@@ -7,7 +7,8 @@ The live stream is separate and is not affected by anything in this folder.
 
 ## Add a track
 
-1. Drop your MP3 in this folder, named `Artist - Title.mp3`.
+1. Drop your MP3 in this folder, named `Artist - Title.mp3`, or
+   `Artist - Title-explicit.mp3` if the lyrics are explicit.
 2. Add an entry to `playlist.json`.
 3. Open a pull request.
 
@@ -32,6 +33,9 @@ That is the whole entry. There is no id to invent and no count to bump.
 | `url` | no | full URL for a track hosted elsewhere, used instead of `file` |
 | `explicit` | no | `true` shows an EXPLICIT badge beside the title |
 
+If the lyrics are explicit, set `explicit`, end the filename `-explicit.mp3`, and
+put `[EXPLICIT]` in the pull request title.
+
 Spaces, accents and apostrophes in `file` are fine. The player encodes the
 name when it builds the URL, so write it exactly as the file is named and do
 not escape anything yourself.
@@ -39,7 +43,8 @@ not escape anything yourself.
 ## What to send
 
 - MP3, 320 kbps or lower. Keep it under 10 MB.
-- Only music you made, or that you hold the rights to distribute.
+- Your own creation, and set in the Omarchy universe. The [README](../README.md)
+  covers what that means.
 - Order in `playlist.json` is the order in the player. New tracks go wherever
   fits, the list is roughly alphabetical by artist.
 
