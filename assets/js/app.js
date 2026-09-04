@@ -12,6 +12,7 @@
   // The live stream still comes from HOST.
   var TRACKS_DIR = 'tracks/';
   var TRACKS_MANIFEST = 'tracks/playlist.json';
+  var LYRICS_DIR = 'tracks/lyrics/';
   var BAR_COUNT = 56;
   var STATS_INTERVAL = 30000;
   var CANVAS_W = 1180;
@@ -119,6 +120,7 @@
     dur: 0,
     skin: 0,
     themeOpen: false,
+    lyricsOpen: false,
     status: 'ready',
     stats: null,
     icyTitle: '',
@@ -146,6 +148,10 @@
   var armed = null; // an autoplay the browser refused, waiting for a gesture
   var hashPending = false; // a link named a track; the manifest decides which
   var keptTracks = false; // the playlist on screen is the copy from last visit
+  var sheets = {}; // slug -> parsed sheet, or why there is not one
+  var lyricsSlug = ''; // whose sheet the panel is holding
+  var lyricsLine = -1; // the line the audio is on
+  var handScrolled = 0, autoScrolled = 0; // who moved the sheet last, and when
   var retryN = 0, retryTimer = null, lastProgress = 0;
 
   var el = {};
@@ -398,6 +404,7 @@
       S.cur = a.currentTime || 0;
       S.dur = isFinite(a.duration) ? a.duration : 0;
       paintClock();
+      syncLyrics();
     });
     a.addEventListener('ended', function () {
       // A live stream has no end; reaching one means the connection went.
@@ -765,9 +772,16 @@
   // A contributed entry names its file and nothing else; encoding happens
   // here so nobody has to hand-escape spaces or accents in the manifest. An
   // entry that already carries a url is left alone.
+  //
+  // The entry is copied rather than rebuilt field by field, which is how
+  // "explicit" used to get lost on the way to the badge that was added for
+  // it, and how "lyrics" would have gone the same way.
   function resolveTrack(t) {
     if (t.url) return t;
-    var r = { title: t.title, artist: t.artist, album: t.album };
+    var r = {};
+    for (var k in t) {
+      if (Object.prototype.hasOwnProperty.call(t, k)) r[k] = t[k];
+    }
     r.url = TRACKS_DIR + encodeURIComponent(t.file || '');
     return r;
   }
@@ -996,9 +1010,191 @@
       frag.appendChild(li);
     });
     el.tracks.appendChild(frag);
+    if (!S.lyricsOpen) paintTrackNote();
+  }
+
+  function paintTrackNote() {
     el.playlistNote.textContent = S.tracks.length
       ? S.tracks.length + ' tracks on demand'
       : 'live rotation only — no track list on this stream';
+  }
+
+  /* ── lyrics ──────────────────────────────────────────
+     A sheet arrives the way a track does: a file in the repo named after
+     the MP3, landing in the same pull request. Timestamps are optional. A
+     sheet that has them follows the audio line by line; a sheet without is
+     just a sheet, which is all most people will want to write. The live
+     stream has neither, so the button is only there for a track. */
+
+  function lyricsUrl(t) {
+    if (!t || t.lyrics === false) return '';
+    // A string names the file, for a sheet that does not match the MP3 name.
+    if (typeof t.lyrics === 'string') return LYRICS_DIR + encodeURIComponent(t.lyrics);
+    if (!t.file) return ''; // hosted elsewhere; there is nothing to guess at
+    return LYRICS_DIR + encodeURIComponent(t.file.replace(/\.[^.]+$/, '') + '.lrc');
+  }
+
+  /* Accepts both shapes, because asking a songwriter to time their own
+     chorus is a good way to get no sheet at all. "[ti:…]" and the other
+     header tags describe the sheet rather than sing anything, so they go.
+     One line can carry several stamps, which is how an LRC says a chorus
+     comes round again. */
+  function parseLyrics(text) {
+    var lines = [];
+    var timed = false;
+
+    String(text).split(/\r?\n/).forEach(function (raw) {
+      var line = raw.trim();
+      if (!line || /^\[[a-z]{2,}:/i.test(line)) return;
+
+      var times = [];
+      var txt = line.replace(/\[(\d+):(\d+(?:[.:]\d+)?)\]/g, function (all, m, s) {
+        times.push(parseInt(m, 10) * 60 + parseFloat(String(s).replace(':', '.')));
+        return '';
+      }).trim();
+
+      if (!txt) return;
+      if (times.length) {
+        timed = true;
+        times.forEach(function (t) { lines.push({ t: t, txt: txt }); });
+      } else {
+        lines.push({ t: -1, txt: txt });
+      }
+    });
+
+    // Only a timed sheet has an order to put right; a plain one is already in
+    // the order it was written.
+    if (timed) lines.sort(function (a, b) { return a.t - b.t; });
+    return { lines: lines, timed: timed };
+  }
+
+  function toggleLyrics() {
+    S.lyricsOpen = !S.lyricsOpen;
+    lyricsLine = -1;
+    paintLyrics();
+  }
+
+  function loadLyrics(t) {
+    var url = lyricsUrl(t);
+    var slug = t.slug;
+    if (!url) { sheets[slug] = 'none'; paintLyrics(); return; }
+
+    sheets[slug] = 'loading';
+    fetch(url).then(function (r) {
+      if (r.status === 404) return null; // no sheet for this one yet
+      if (!r.ok) throw new Error('lyrics ' + r.status);
+      return r.text();
+    }).then(function (text) {
+      sheets[slug] = text == null ? 'none' : parseLyrics(text);
+      paintLyrics();
+    }).catch(function () {
+      sheets[slug] = 'error';
+      paintLyrics();
+    });
+  }
+
+  /* The scroller belongs to the listener the moment they touch it: a sheet
+     that yanks itself back on the next line is unreadable. Our own scrolling
+     fires the same event, so it is stamped and ignored. */
+  function lyricsScrolledByHand() {
+    if (Date.now() - autoScrolled < 200) return;
+    handScrolled = Date.now();
+  }
+
+  function scrollToLine(node) {
+    if (Date.now() - handScrolled < 6000) return;
+    var box = el.lyrics;
+    var to = node.offsetTop - (box.clientHeight / 2) + (node.offsetHeight / 2);
+    autoScrolled = Date.now();
+    box.scrollTop = Math.max(0, to);
+  }
+
+  // Which line the audio is on: the last one that has started.
+  function lineAt(sheet, at) {
+    var i = -1;
+    for (var n = 0; n < sheet.lines.length; n++) {
+      if (sheet.lines[n].t <= at) i = n; else break;
+    }
+    return i;
+  }
+
+  function syncLyrics() {
+    if (!S.lyricsOpen || S.mode !== 'track') return;
+    var sheet = sheets[lyricsSlug];
+    if (!sheet || !sheet.lines || !sheet.timed) return;
+
+    var i = lineAt(sheet, S.cur);
+    if (i === lyricsLine) return;
+
+    var was = el.lyrics.children[lyricsLine];
+    if (was) { was.classList.remove('is-on'); was.removeAttribute('aria-current'); }
+
+    lyricsLine = i;
+    var now = el.lyrics.children[i];
+    if (!now) return;
+    now.classList.add('is-on');
+    now.setAttribute('aria-current', 'true');
+    scrollToLine(now);
+  }
+
+  function paintSheet(sheet) {
+    el.lyrics.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    sheet.lines.forEach(function (l) {
+      var li = document.createElement('li');
+      li.className = 'ly-line';
+      li.textContent = l.txt;
+      frag.appendChild(li);
+    });
+    el.lyrics.appendChild(frag);
+    el.lyrics.classList.toggle('is-timed', sheet.timed);
+    lyricsLine = -1;
+  }
+
+  /* One pass decides everything the panel shows: whether the button is
+     there at all, which of the two lists the box holds, and what the note
+     under it says. Called from paintAll(), so changing track is enough. */
+  function paintLyrics() {
+    var t = S.mode === 'track' ? S.tracks[S.ti] : null;
+
+    // Nothing to show for the live stream, and nothing to offer either.
+    if (!t) {
+      S.lyricsOpen = false;
+      el.lyricsBtn.hidden = true;
+    } else {
+      el.lyricsBtn.hidden = false;
+      el.lyricsBtn.classList.toggle('is-live', S.lyricsOpen);
+      el.lyricsBtn.setAttribute('aria-expanded', S.lyricsOpen ? 'true' : 'false');
+    }
+
+    el.trHead.hidden = S.lyricsOpen;
+    el.tracks.hidden = S.lyricsOpen;
+    el.lyricsBox.hidden = !S.lyricsOpen;
+    if (!S.lyricsOpen) { paintTrackNote(); return; }
+
+    if (t.slug !== lyricsSlug) {
+      lyricsSlug = t.slug;
+      lyricsLine = -1;
+      handScrolled = 0;
+      el.lyrics.innerHTML = '';
+      el.lyrics.scrollTop = 0;
+    }
+
+    var sheet = sheets[lyricsSlug];
+    if (sheet === undefined) { loadLyrics(t); sheet = 'loading'; }
+
+    if (sheet === 'loading') { el.playlistNote.textContent = 'looking for a sheet…'; return; }
+    if (sheet === 'error') { el.playlistNote.textContent = 'the sheet would not load'; return; }
+    if (sheet === 'none' || !sheet.lines.length) {
+      el.playlistNote.textContent = 'no lyrics on file — send them in a pull request';
+      return;
+    }
+
+    if (!el.lyrics.children.length) paintSheet(sheet);
+    el.playlistNote.textContent = sheet.timed
+      ? sheet.lines.length + ' lines · following the track'
+      : sheet.lines.length + ' lines';
+    syncLyrics();
   }
 
   function paintAll() {
@@ -1007,6 +1203,7 @@
     paintTransport();
     paintStats();
     paintTracks();
+    paintLyrics();
   }
 
   /* ── knobs ───────────────────────────────────────────── */
@@ -1132,7 +1329,8 @@
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
-      'playlistName', 'geoName', 'tracks', 'playlistNote', 'geoList', 'peak', 'status',
+      'playlistName', 'geoName', 'tracks', 'trHead', 'playlistNote', 'geoList', 'peak', 'status',
+      'lyricsBtn', 'lyricsBox', 'lyrics',
       'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
 
@@ -1158,6 +1356,8 @@
     el.next.addEventListener('click', next);
     el.prev.addEventListener('click', prev);
     el.backToRadio.addEventListener('click', playRadio);
+    el.lyricsBtn.addEventListener('click', toggleLyrics);
+    el.lyrics.addEventListener('scroll', lyricsScrolledByHand);
 
     el.seek.addEventListener('click', function (e) {
       if (S.mode !== 'track' || !S.dur) return;

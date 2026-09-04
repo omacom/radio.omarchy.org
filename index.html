@@ -220,9 +220,12 @@
       <section class="playlist" aria-label="Playlist">
         <div class="panel-head">
           <h2 class="panel-title">playlist &#8212; <span id="playlistName">omarchy</span></h2>
-          <button type="button" class="back" id="backToRadio"><span class="pulse" aria-hidden="true"></span>live radio</button>
+          <div class="head-btns">
+            <button type="button" class="back lyr" id="lyricsBtn" aria-expanded="false" aria-controls="lyricsBox" hidden>lyrics</button>
+            <button type="button" class="back" id="backToRadio"><span class="pulse" aria-hidden="true"></span>live radio</button>
+          </div>
         </div>
-        <div class="tr-head">
+        <div class="tr-head" id="trHead">
           <span>#</span>
           <span>title</span>
           <span class="ta-r">state</span>
@@ -234,6 +237,9 @@
           <li><button type="button" class="track" data-i="3"><span class="tr-n">04</span><span class="tr-t"><span class="tr-title">Omakase Machine</span><span class="tr-artist">Ryan R. Hughes</span></span><span class="tr-s"></span></button></li>
           <li><button type="button" class="track" data-i="4"><span class="tr-n">05</span><span class="tr-t"><span class="tr-title">Omarchy Quattro</span><span class="tr-artist">Ryan R. Hughes</span></span><span class="tr-s"></span></button></li>
         </ul>
+        <div class="lyr-box" id="lyricsBox" hidden>
+          <ol class="lyrics" id="lyrics"></ol>
+        </div>
         <p class="panel-note" id="playlistNote">7 tracks on demand</p>
       </section>
 

@@ -642,6 +642,49 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--ac);
 }
 
+/* ── lyrics ──────────────────────────────────────────────
+   The sheet takes over the playlist box rather than opening a panel of
+   its own: the deck is a fixed canvas, and this is already the panel
+   about the songs. Same footprint, one list swapped for another. */
+
+.head-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tr-head[hidden], .tracks[hidden] { display: none; }
+
+.lyr-box {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--bd);
+}
+.lyr-box[hidden] { display: none; }
+
+.lyrics {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 20px 22px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--fg);
+}
+
+.ly-line { padding: 1px 0; }
+
+/* A timed sheet reads as one line lit against the rest. An untimed one has
+   no current line to light, so it stays evenly readable instead of sitting
+   permanently dimmed. */
+.lyrics.is-timed .ly-line { color: var(--c3); transition: color .2s linear; }
+.lyrics.is-timed .ly-line.is-on { color: var(--ac); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics.is-timed .ly-line { transition: none; }
+}
+
 .panel-note {
   padding: 12px 20px;
   border-bottom: 1px solid var(--bd);
