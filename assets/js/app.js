@@ -20,6 +20,17 @@
      origin's feed needs that origin's permission — if the list is ever empty,
      that is what to check, and this is the one line to point somewhere that
      grants it. */
+  /* Off until the feed's host sends the header a browser needs to read it:
+     Riverside answer the preflight with it and the GET without, and a plain
+     read never asks for a preflight, so there is nothing to put behind the
+     button yet. Everything below it works — turn this back on when either
+     Riverside send it or a host we control passes the feed through. */
+  var SHOW_PODCAST = false;
+
+  /* Off while there are no sheets in tracks/lyrics/. The button would open a
+     box that says there is nothing in it, on every song. */
+  var SHOW_LYRICS = false;
+
   var STORIES_FEED = 'https://api.riverside.com/hosting/1i59HjrN.rss';
   var STORIES_TAG = 'from the community';
   var STORIES_HOME = 'https://omarchystories.org';
@@ -188,7 +199,7 @@
   var wiring = false; // an audio graph waiting on its context to start
   var armed = null; // an autoplay the browser refused, waiting for a gesture
   var hashPending = false; // a link named a track; the manifest decides which
-  var loadsLeft = 2; // the playlist and the feed; a link waits on both
+  var loadsLeft = SHOW_PODCAST ? 2 : 1; // a link waits on the lists there are
   var keptTracks = false; // the playlist on screen is the copy from last visit
   var sheets = {}; // key -> parsed sheet, or why there is not one
   var lyricsKey = ''; // whose sheet the lyrics box is holding
@@ -754,7 +765,10 @@
     var key = (location.hash || '').replace(/^#/, '');
     if (!key) { playRadio(); return; }
     if (/^stories\//.test(key)) {
-      var feed = readStories();
+      // A copy kept from when the podcast was on is not a reason to play it
+      // now. With the list gone the link has nothing to open, and
+      // listSettled() falls back to the station.
+      var feed = SHOW_PODCAST ? readStories() : null;
       if (feed) applyFeed(feed);
     } else {
       var kept = readManifest();
@@ -1302,6 +1316,9 @@
      show that happens to be listenable here. */
   function paintTabs() {
     var stories = S.tab === 'stories';
+    // With one list there is nothing to switch between, so the pair goes
+    // rather than sitting there with a side that leads nowhere.
+    el.seg.hidden = !SHOW_PODCAST;
     el.tabSongs.classList.toggle('is-on', !stories);
     el.tabPodcast.classList.toggle('is-on', stories);
     el.tabSongs.setAttribute('aria-pressed', stories ? 'false' : 'true');
@@ -1314,6 +1331,7 @@
   }
 
   function showTab(tab) {
+    if (tab === 'stories' && !SHOW_PODCAST) return;
     if (S.tab === tab) return;
     S.tab = tab;
     // The sheet was opened on the other list's item; it does not follow.
@@ -1643,7 +1661,9 @@
   function paintLyrics() {
     // A sheet is a song's. The podcast tab carries an episode's chapters and
     // notes in the list itself, so there is nothing to toggle there.
-    var t = S.mode === 'track' && S.tab === 'songs' ? S.tracks[S.ti] : null;
+    var t = SHOW_LYRICS && S.mode === 'track' && S.tab === 'songs'
+      ? S.tracks[S.ti]
+      : null;
 
     // Nothing to show for the live stream, and nothing to offer either.
     if (!t) {
@@ -1823,7 +1843,7 @@
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
       'playlistKind', 'playlistName', 'geoName', 'tracks', 'trHead', 'playlistNote',
-      'geoList', 'peak', 'status', 'tabSongs', 'tabPodcast',
+      'geoList', 'peak', 'status', 'seg', 'tabSongs', 'tabPodcast',
       'lyricsBtn', 'lyricsBox', 'lyrics',
       'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
@@ -1895,7 +1915,7 @@
 
     tuneIn();
     loadTracks();
-    loadStories();
+    if (SHOW_PODCAST) loadStories();
     loadStats();
     setInterval(loadStats, STATS_INTERVAL);
     setInterval(watchdog, 5000);

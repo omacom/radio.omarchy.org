@@ -687,6 +687,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--c2);
   white-space: nowrap;
 }
+.seg[hidden] { display: none; }
 .seg-b + .seg-b { border-left: 1px solid var(--bd); }
 .seg-b:hover { color: var(--fg); background: var(--rowHov); }
 .seg-b.is-on { color: var(--acFg); background: var(--ac); }
