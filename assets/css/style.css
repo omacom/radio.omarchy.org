@@ -508,7 +508,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   min-height: 0;
 }
 
-.playlist .panel-head { padding: 16px 20px 10px; }
+.playlist .panel-head { padding: 16px 20px 10px; flex-wrap: wrap; }
 
 /* The one control that says this is a radio. It used to be a 10px text
    link sitting where a caption goes, so it read as a label rather than
@@ -529,6 +529,8 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .back .pulse { animation: none; }
 .back:hover { background: var(--ac); color: var(--acFg); }
 .back:hover .pulse { background: var(--acFg); }
+
+.back[hidden] { display: none; }
 
 .back.is-live { background: var(--ac); color: var(--acFg); }
 .back.is-live .pulse { background: var(--acFg); }
@@ -635,12 +637,26 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 
 .tr-s {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   text-align: right;
   font-size: 9px;
   letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--ac);
 }
+
+/* Says the row has more under it, and which way pressing it goes. */
+.tr-c {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--c2);
+}
+.tr-c[hidden] { display: none; }
+.track.is-on .tr-c { color: var(--ac); }
 
 /* ── lyrics ──────────────────────────────────────────────
    The sheet takes over the playlist box rather than opening a panel of
@@ -652,6 +668,28 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   gap: 8px;
 }
+
+/* Two lists, one panel. A pair of pills would read as two more buttons in a
+   row that already has two; sharing a box says they are one control with a
+   side currently chosen. */
+.seg {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--bd);
+}
+
+.seg-b {
+  padding: 7px 12px;
+  font-size: 10px;
+  font-weight: var(--wt-small);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--c2);
+  white-space: nowrap;
+}
+.seg-b + .seg-b { border-left: 1px solid var(--bd); }
+.seg-b:hover { color: var(--fg); background: var(--rowHov); }
+.seg-b.is-on { color: var(--acFg); background: var(--ac); }
 
 .tr-head[hidden], .tracks[hidden] { display: none; }
 
@@ -675,15 +713,67 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .ly-line { padding: 1px 0; }
 
+/* A chapter knows where it starts, so the line is worth pressing. It is a
+   real button inside the line, which keeps the sheet a list and the jump a
+   control. */
+.ly-jump button {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 0;
+  color: inherit;
+}
+.ly-jump button:hover { color: var(--ac); }
+.ly-t {
+  flex: none;
+  font-family: var(--lcdfont);
+  font-size: 15px;
+  line-height: 1.4;
+  opacity: .65;
+}
+
 /* A timed sheet reads as one line lit against the rest. An untimed one has
    no current line to light, so it stays evenly readable instead of sitting
    permanently dimmed. */
-.lyrics.is-timed .ly-line { color: var(--c3); transition: color .2s linear; }
-.lyrics.is-timed .ly-line.is-on { color: var(--ac); }
+.is-timed .ly-line { color: var(--c3); transition: color .2s linear; }
+.is-timed .ly-line.is-on { color: var(--ac); }
 
 @media (prefers-reduced-motion: reduce) {
-  .lyrics.is-timed .ly-line { transition: none; }
+  .is-timed .ly-line { transition: none; }
 }
+
+/* ── the open episode ────────────────────────────────────
+   An episode is an hour of someone talking, not three minutes of song: what
+   it is about and where its parts start are the difference between pressing
+   play and not. So the podcast tab opens the one playing in place, under its
+   own row, instead of putting it behind a toggle that hides the list. */
+
+.tracks li.ep-open {
+  display: block;
+  padding: 2px 20px 16px;
+  background: var(--rowOn);
+  border-bottom: 1px solid var(--bdF);
+}
+
+.ep-h {
+  padding: 12px 0 6px;
+  font-size: 9px;
+  font-weight: var(--wt-small);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--c2);
+}
+
+.ep-notes p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c2);
+  max-width: 70ch;
+  /* Shows put bare links in their notes, and one of those is longer than any
+     panel. It wraps rather than pushing the list sideways. */
+  overflow-wrap: anywhere;
+}
+.ep-notes p + p { margin-top: 7px; }
 
 .panel-note {
   padding: 12px 20px;
@@ -693,6 +783,10 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   text-transform: uppercase;
   color: var(--c3);
 }
+
+/* The podcast is somebody else's, so its count carries a way to get to it. */
+.panel-note a { color: var(--ac); }
+.panel-note a:hover { color: var(--fg); }
 
 .geo { display: flex; flex-direction: column; min-height: 0; }
 
@@ -896,6 +990,11 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .menu { max-height: 60vh; }
   .picker-btn { min-height: 44px; }
   .back { min-height: 44px; display: inline-flex; align-items: center; }
+  .seg-b { min-height: 44px; display: inline-flex; align-items: center; }
+  .ly-jump button { min-height: 36px; align-items: center; }
+  /* The list is capped for the phone layout; an open episode needs the room
+     to be worth opening. */
+  .tracks { max-height: 420px; }
   .install { min-height: 44px; }
 
   /* The marquee sat 2px off the line beneath it. */

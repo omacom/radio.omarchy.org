@@ -44,6 +44,8 @@
 
 <link rel="preconnect" href="https://radio.cliamp.stream" crossorigin>
 <link rel="dns-prefetch" href="https://radio.cliamp.stream">
+<link rel="preconnect" href="https://api.riverside.com" crossorigin>
+<link rel="dns-prefetch" href="https://api.riverside.com">
 <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/vt323-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -93,6 +95,7 @@
       "name": "Omarchy Radio",
       "isPartOf": { "@id": "https://radio.omarchy.org/#website" },
       "about": { "@id": "https://radio.omarchy.org/#service" },
+      "mentions": { "@id": "https://radio.omarchy.org/#stories" },
       "image": [
         "https://radio.omarchy.org/assets/images/opengraph.png",
         "https://radio.omarchy.org/assets/images/opengraph-16x9.png",
@@ -107,6 +110,16 @@
         "caption": "Omarchy Radio"
       },
       "inLanguage": "en"
+    },
+    {
+      "@type": "PodcastSeries",
+      "@id": "https://radio.omarchy.org/#stories",
+      "name": "Omarchy Stories",
+      "url": "https://omarchystories.org",
+      "webFeed": "https://api.riverside.com/hosting/1i59HjrN.rss",
+      "description": "A signal from nowhere \u2014 a transmission by the community, for the community.",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://omarchy.org/#organization" }
     },
     {
       "@type": "RadioBroadcastService",
@@ -219,8 +232,12 @@
 
       <section class="playlist" aria-label="Playlist">
         <div class="panel-head">
-          <h2 class="panel-title">playlist &#8212; <span id="playlistName">omarchy</span></h2>
+          <h2 class="panel-title"><span id="playlistKind">playlist</span> &#8212; <span id="playlistName">omarchy</span></h2>
           <div class="head-btns">
+            <div class="seg">
+              <button type="button" class="seg-b is-on" id="tabSongs" aria-pressed="true">songs</button>
+              <button type="button" class="seg-b" id="tabPodcast" aria-pressed="false">podcast</button>
+            </div>
             <button type="button" class="back lyr" id="lyricsBtn" aria-expanded="false" aria-controls="lyricsBox" hidden>lyrics</button>
             <button type="button" class="back" id="backToRadio"><span class="pulse" aria-hidden="true"></span>live radio</button>
           </div>
@@ -275,6 +292,7 @@
     <p>The player streams audio and live listener stats in the browser. You can still tune in directly with any media player:</p>
     <ul>
       <li><code>mpv https://radio.cliamp.stream/omarchy/stream</code> &#8212; Omarchy, the house station</li>
+      <li><code>https://api.riverside.com/hosting/1i59HjrN.rss</code> &#8212; Omarchy Stories, in any podcast app</li>
     </ul>
     <p>More about the desktop at <a href="https://omarchy.org">omarchy.org</a>.</p>
   </div>

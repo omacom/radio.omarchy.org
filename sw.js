@@ -5,9 +5,13 @@
    stream is an endless response, and the on-demand tracks are served as
    range requests, where storing a partial response breaks seeking.
 
+   The podcast feed and its episodes are another origin's and are left alone
+   here; the player keeps its own copy of the episode list so a link to one
+   still opens offline.
+
    Bump VERSION to retire every old cache on the next activate. */
 
-var VERSION = 'v1';
+var VERSION = 'v2';
 var SHELL = 'omarchy-radio-' + VERSION;
 
 var ASSETS = [

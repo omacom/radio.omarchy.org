@@ -13,12 +13,24 @@
   var TRACKS_DIR = 'tracks/';
   var TRACKS_MANIFEST = 'tracks/playlist.json';
   var LYRICS_DIR = 'tracks/lyrics/';
+
+  /* Omarchy Stories is a podcast rather than a folder, so its episodes are
+     read from the show's feed at load: the show publishes, the deck follows,
+     and nothing here has to be bumped when an episode lands. Reading another
+     origin's feed needs that origin's permission — if the list is ever empty,
+     that is what to check, and this is the one line to point somewhere that
+     grants it. */
+  var STORIES_FEED = 'https://api.riverside.com/hosting/1i59HjrN.rss';
+  var STORIES_TAG = 'from the community';
+  var STORIES_HOME = 'https://omarchystories.org';
+  var ITUNES_NS = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
   var BAR_COUNT = 56;
   var STATS_INTERVAL = 30000;
   var CANVAS_W = 1180;
   var CANVAS_H = 880;
   var STORE_KEY = 'omarchy-radio-skin';
   var STORE_TRACKS = 'omarchy-radio-playlist';
+  var STORE_STORIES = 'omarchy-radio-stories';
 
   var SKINS = [
     { name: 'green',            bg: '#0a0b0a', fg: '#e7e6e0', ac: '#5ef2a0', bd: '#23261f' },
@@ -100,6 +112,30 @@
     return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
   }
 
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+  /* Spelled out here rather than by locale: the deck is one typeface at one
+     size, and an engine that renders September as "Sept" makes the list ragged
+     on some machines and not others. */
+  var MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  function dateLabel(ms) {
+    if (!ms) return '';
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  // An episode is an hour, not three minutes: minutes are the useful unit,
+  // and the clock in the deck still counts the seconds.
+  function lengthLabel(secs) {
+    if (!secs) return '';
+    var m = Math.round(secs / 60);
+    if (m < 60) return m + ' min';
+    return Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+  }
+
   function num(n) {
     if (n == null) return '—';
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'm';
@@ -111,9 +147,14 @@
 
   var S = {
     st: 0,
-    mode: 'radio',
-    ti: -1,
+    mode: 'radio', // 'radio' | 'track' | 'story'
+    ti: -1,        // index into whichever list the mode names
     tracks: [],
+    eps: [],
+    show: null,    // what the feed says the show is called, and where it lives
+    tab: 'songs',  // which of the two lists the panel is showing
+    epOpen: true,  // the playing episode is showing what it is about
+    feedErr: false,
     playing: false,
     vol: 0.8,
     cur: 0,
@@ -140,21 +181,29 @@
   var lev = new Float32Array(BAR_COUNT);
   var amp = 0;
   var simVis = true;
-  var audio, ctx, analyser, freq, metaAbort, dpr = 1;
+  var audio, music, pod, ctx, analyser, freq, metaAbort, dpr = 1;
   var loadedSrc = '';
   var intent = 'idle'; // 'play' | 'pause' | 'stop' — what the listener last asked for
   var gestured = false; // the listener has touched the page at least once
   var wiring = false; // an audio graph waiting on its context to start
   var armed = null; // an autoplay the browser refused, waiting for a gesture
   var hashPending = false; // a link named a track; the manifest decides which
+  var loadsLeft = 2; // the playlist and the feed; a link waits on both
   var keptTracks = false; // the playlist on screen is the copy from last visit
-  var sheets = {}; // slug -> parsed sheet, or why there is not one
-  var lyricsSlug = ''; // whose sheet the panel is holding
+  var sheets = {}; // key -> parsed sheet, or why there is not one
+  var lyricsKey = ''; // whose sheet the lyrics box is holding
+  // The stamped sheet being followed, wherever it lives: the lyrics box for a
+  // song, the open episode inside the podcast list for a chapter list.
+  var sheetOn = { lines: null, node: null, scroll: null };
   var lyricsLine = -1; // the line the audio is on
   var handScrolled = 0, autoScrolled = 0; // who moved the sheet last, and when
   var retryN = 0, retryTimer = null, lastProgress = 0;
 
   var el = {};
+  // The state cell of the row that is playing. Held so pressing pause can say
+  // so in the list without rebuilding it: the list is also what the listener
+  // is reading, and a rebuild throws away their scroll position.
+  var stateCell = null;
 
   /* ── theme application ───────────────────────────────── */
 
@@ -369,7 +418,12 @@
     S.playing = false;
     paintTransport();
 
-    if (retryN >= RETRY_MAX) { setStatus('stream unreachable — press play'); return; }
+    if (retryN >= RETRY_MAX) {
+      setStatus(S.mode === 'radio'
+        ? 'stream unreachable — press play'
+        : 'that one would not play');
+      return;
+    }
 
     // No point spending attempts while the machine knows it is offline. The
     // online listener picks it up the moment the link comes back.
@@ -393,13 +447,27 @@
     scheduleReconnect();
   }
 
-  function buildAudio() {
+  /* Two elements, one deck. The analyser can only be handed a source it is
+     allowed to read: the songs are served from this origin and the stream
+     sends the header, so those run through the graph and drive a real
+     spectrum. An episode comes from the show's host, whose download link
+     redirects through an address that sends no such header, and a source the
+     graph is not allowed to read is silence rather than an error. So episodes
+     play on an element the graph never touches, and the bars simulate while
+     one does — the same stand-in used before the first gesture.
+
+     Every handler asks first whether it is still the element in use, because
+     switching pauses the other one and a pause fires an event either way. */
+  function makeAudio(analysed) {
     var a = new Audio();
     a.preload = 'none';
-    a.crossOrigin = 'anonymous';
+    if (analysed) a.crossOrigin = 'anonymous';
     a.volume = S.vol;
 
+    function mine() { return audio === a; }
+
     a.addEventListener('timeupdate', function () {
+      if (!mine()) return;
       lastProgress = Date.now();
       S.cur = a.currentTime || 0;
       S.dur = isFinite(a.duration) ? a.duration : 0;
@@ -407,11 +475,13 @@
       syncLyrics();
     });
     a.addEventListener('ended', function () {
+      if (!mine()) return;
       // A live stream has no end; reaching one means the connection went.
       if (S.mode === 'radio') scheduleReconnect();
       else next();
     });
     a.addEventListener('playing', function () {
+      if (!mine()) return;
       cancelReconnect();
       armed = null; // whatever was owed, it is playing now
       lastProgress = Date.now();
@@ -420,6 +490,7 @@
       paintTransport();
     });
     a.addEventListener('pause', function () {
+      if (!mine()) return;
       // pause fires asynchronously, after stop() has already set its status.
       // Only a deliberate pause calls off a reconnect; a dropped stream also
       // pauses the element, and there intent is still 'play'.
@@ -428,10 +499,26 @@
       setStatus(intent === 'stop' ? 'stopped' : 'paused');
       paintTransport();
     });
-    a.addEventListener('waiting', function () { setStatus('buffering…'); });
-    a.addEventListener('error', function () { scheduleReconnect(); });
+    a.addEventListener('waiting', function () { if (mine()) setStatus('buffering…'); });
+    a.addEventListener('error', function () { if (mine()) scheduleReconnect(); });
 
-    audio = a;
+    return a;
+  }
+
+  function buildAudio() {
+    music = makeAudio(true);
+    pod = makeAudio(false);
+    audio = music;
+  }
+
+  // Only one of them is ever the deck. The other stops rather than sitting
+  // paused halfway through an episode while a song plays over it.
+  function useElement(a) {
+    if (audio === a) return;
+    var was = audio;
+    audio = a; // before the pause, so the old element's handler stands down
+    try { was.pause(); } catch (e) { /* nothing was loaded */ }
+    audio.volume = S.vol;
   }
 
   /* iOS ignores writes to HTMLMediaElement.volume, leaving the hardware
@@ -460,7 +547,7 @@
      Until then the simulated bars stand in, which costs a spectrum rather
      than the station. */
   function wireGraph() {
-    if (ctx || wiring || !audio) return;
+    if (ctx || wiring || !music) return;
     if (!gestured) return; // nothing to spend on a resume yet
     try {
       var C = window.AudioContext || window.webkitAudioContext;
@@ -476,7 +563,7 @@
 
       var take_over = function () {
         if (c.state !== 'running') { give_up(); return; }
-        var src = c.createMediaElementSource(audio);
+        var src = c.createMediaElementSource(music);
         var an = c.createAnalyser();
         an.fftSize = 512;
         an.smoothingTimeConstant = 0.75;
@@ -497,16 +584,31 @@
     }
   }
 
-  function wantedSrc() {
-    if (mode_is_track() && S.tracks[S.ti]) return S.tracks[S.ti].url;
-    return HOST + '/' + STATIONS[S.st].slug + '/stream';
+  // The list the mode names, the list on screen, and the item playing out of
+  // the first of them. 'radio' names no list and no item.
+  function playingList() {
+    if (S.mode === 'track') return S.tracks;
+    if (S.mode === 'story') return S.eps;
+    return null;
   }
 
-  function mode_is_track() { return S.mode === 'track'; }
+  function onScreenList() { return S.tab === 'stories' ? S.eps : S.tracks; }
+
+  function nowItem() {
+    var l = playingList();
+    return l ? l[S.ti] : null;
+  }
+
+  function wantedSrc() {
+    var it = nowItem();
+    if (it) return it.url;
+    return HOST + '/' + STATIONS[S.st].slug + '/stream';
+  }
 
   function play(src, mode, ti) {
     intent = 'play';
     loadedSrc = src;
+    useElement(mode === 'story' ? pod : music);
     wireGraph();
     if (ctx && ctx.state === 'suspended') ctx.resume();
     audio.src = src;
@@ -534,10 +636,22 @@
     startMeta();
   }
 
-  function playTrack(i) {
-    var t = S.tracks[i];
-    // An on-demand track carries its own title; the live feed is not needed.
-    if (t) { play(t.url, 'track', i); syncHash(); stopMeta(); }
+  /* An item on demand carries its own title, so the live feed's metadata is
+     not needed while one plays. */
+  function playFrom(list, mode, i) {
+    var it = list[i];
+    if (!it) return;
+    play(it.url, mode, i);
+    syncHash();
+    stopMeta();
+  }
+
+  function playTrack(i) { S.tab = 'songs'; playFrom(S.tracks, 'track', i); }
+
+  function playStory(i) {
+    S.tab = 'stories';
+    S.epOpen = true; // an episode just chosen shows what it is
+    playFrom(S.eps, 'story', i);
   }
 
   function toggle() {
@@ -568,13 +682,15 @@
     paintAll();
   }
 
-  // There is one station, so these only ever step the on-demand tracks.
+  // There is one station, so these only ever step whichever list is playing.
   function next() {
-    if (S.mode === 'track' && S.tracks.length) playTrack((S.ti + 1) % S.tracks.length);
+    var l = playingList();
+    if (l && l.length) playFrom(l, S.mode, (S.ti + 1) % l.length);
   }
 
   function prev() {
-    if (S.mode === 'track' && S.tracks.length) playTrack((S.ti - 1 + S.tracks.length) % S.tracks.length);
+    var l = playingList();
+    if (l && l.length) playFrom(l, S.mode, (S.ti - 1 + l.length) % l.length);
   }
 
   /* ── autoplay ────────────────────────────────────────
@@ -635,12 +751,17 @@
      from the last visit answers now instead; loadTracks() confirms it a
      moment later. The live stream has nothing to look up either way. */
   function tuneIn() {
-    var slug = (location.hash || '').replace(/^#/, '');
-    if (!slug) { playRadio(); return; }
-    var kept = readManifest();
-    if (kept) { applyManifest(kept); keptTracks = true; }
+    var key = (location.hash || '').replace(/^#/, '');
+    if (!key) { playRadio(); return; }
+    if (/^stories\//.test(key)) {
+      var feed = readStories();
+      if (feed) applyFeed(feed);
+    } else {
+      var kept = readManifest();
+      if (kept) { applyManifest(kept); keptTracks = true; }
+    }
     if (openHash()) return;
-    hashPending = true; // nothing kept, or kept from before this track existed
+    hashPending = true; // nothing kept, or kept from before this one existed
   }
 
   /* ── network ─────────────────────────────────────────── */
@@ -709,6 +830,187 @@
     }).catch(function () { /* metadata is best-effort */ });
   }
 
+  /* ── stories ─────────────────────────────────────────
+     A podcast is an RSS feed, and this reads it the way a podcast app does:
+     the items, their audio, and the notes the show wrote. Nothing about the
+     show is kept in this repo, so an episode appears here because it was
+     published, not because anybody remembered to add it.
+
+     An episode is not a three-minute song, so what it is about and where its
+     parts start belong with it rather than behind a toggle: the podcast tab
+     opens the playing episode in place, under its own row, with its chapters
+     and then its notes. A stamped line in the description is a chapter, which
+     is the same shape as a timed lyric sheet — so the chapters follow the
+     audio the way a lyric does, and jump when pressed. */
+
+  var CHAPTER_LINE = /^(?:(\d+):)?(\d{1,2}):(\d{2})\s+(\S.*)$/;
+  var CHAPTER_HEAD = /^(chapters|timestamps|chapter markers)[:.]?$/i;
+  var BLOCKS = 'p, li, h1, h2, h3, h4, h5, h6';
+
+  function xmlKid(node, name) {
+    for (var i = 0; i < node.children.length; i++) {
+      if (node.children[i].tagName === name) return node.children[i];
+    }
+    return null;
+  }
+
+  function xmlText(node, name) {
+    var n = xmlKid(node, name);
+    return n ? (n.textContent || '').trim() : '';
+  }
+
+  function itunesText(node, name) {
+    var n = node.getElementsByTagNameNS(ITUNES_NS, name)[0];
+    return n ? (n.textContent || '').trim() : '';
+  }
+
+  // itunes:duration comes as seconds, mm:ss or hh:mm:ss.
+  function hms(raw) {
+    if (!raw) return 0;
+    var parts = String(raw).split(':');
+    var out = 0;
+    for (var i = 0; i < parts.length; i++) {
+      var n = parseInt(parts[i], 10);
+      if (isNaN(n)) return 0;
+      out = out * 60 + n;
+    }
+    return out;
+  }
+
+  /* The description arrives as the markup the show wrote it in. Blocks become
+     lines, a list item keeps a bullet so the takeaways do not run together,
+     and a link that is not already its own address says where it goes,
+     because a line in this panel is text and cannot be clicked.
+
+     Anything stamped with a time is a chapter rather than a note, wherever in
+     the description it sits, and once the stamps are lifted out the heading
+     above them has nothing left to head, so it goes too. */
+  function notesOf(markup) {
+    var lines = [], chapters = [];
+    if (!markup) return { lines: lines, chapters: chapters };
+
+    var body = new DOMParser().parseFromString(markup, 'text/html').body;
+
+    Array.prototype.forEach.call(body.querySelectorAll('a[href]'), function (a) {
+      var txt = (a.textContent || '').trim();
+      var href = a.getAttribute('href') || '';
+      if (!href) return;
+      if (!txt) a.textContent = href;
+      else if (txt !== href && !/^https?:\/\//i.test(txt)) {
+        a.textContent = txt + ' (' + href + ')';
+      }
+    });
+
+    var blocks = body.querySelectorAll(BLOCKS);
+    var raw = blocks.length
+      ? Array.prototype.map.call(blocks, function (node) {
+          // A block holding another block is a wrapper; the inner ones speak.
+          if (node.querySelector(BLOCKS)) return '';
+          var txt = (node.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!txt) return '';
+          return node.tagName === 'LI' ? '· ' + txt : txt;
+        })
+      // A description that is only text still has its own lines.
+      : (body.textContent || '').split(/\n+/);
+
+    Array.prototype.forEach.call(raw, function (line) {
+      line = String(line).trim();
+      if (!line) return;
+      var m = CHAPTER_LINE.exec(line.replace(/^· /, ''));
+      if (m) {
+        chapters.push({
+          t: (m[1] ? parseInt(m[1], 10) * 3600 : 0) +
+            parseInt(m[2], 10) * 60 + parseInt(m[3], 10),
+          txt: m[4].trim()
+        });
+        return;
+      }
+      lines.push(line);
+    });
+
+    if (chapters.length) {
+      lines = lines.filter(function (l) { return !CHAPTER_HEAD.test(l); });
+      chapters.sort(function (a, b) { return a.t - b.t; });
+    }
+    return { lines: lines, chapters: chapters };
+  }
+
+  function parseFeed(text) {
+    var doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('not a feed');
+    var ch = doc.getElementsByTagName('channel')[0];
+    if (!ch) throw new Error('not a feed');
+
+    var show = xmlText(ch, 'title') || 'Omarchy Stories';
+    var eps = [];
+    var items = ch.getElementsByTagName('item');
+
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var enc = xmlKid(it, 'enclosure');
+      var url = enc ? enc.getAttribute('url') : '';
+      var title = xmlText(it, 'title') || itunesText(it, 'title');
+      if (!title || !url) continue;
+
+      var notes = notesOf(xmlText(it, 'description') || itunesText(it, 'summary'));
+      eps.push({
+        title: title,
+        // The show stands where the artist does, so the marquee, the lock
+        // screen and the media keys all read an episode without a special case.
+        artist: show,
+        url: url,
+        ms: Date.parse(xmlText(it, 'pubDate')) || 0,
+        secs: hms(itunesText(it, 'duration')),
+        explicit: /^(yes|true)$/i.test(itunesText(it, 'explicit')),
+        notes: notes.lines,
+        chapters: notes.chapters
+      });
+    }
+
+    // Newest first, the way a show is read. The list numbers them from the
+    // other end, so episode 01 stays episode 01 as the show grows.
+    eps.sort(function (a, b) { return b.ms - a.ms; });
+
+    return { show: show, link: xmlText(ch, 'link') || STORIES_HOME, episodes: eps };
+  }
+
+  function applyFeed(f) {
+    S.show = { name: f.show, link: f.link };
+    S.eps = f.episodes || [];
+    assignSlugs(S.eps, 'stories/');
+    if (S.tab === 'stories') paintTracks();
+  }
+
+  function readStories() {
+    try { return JSON.parse(localStorage.getItem(STORE_STORIES)); } catch (e) { return null; }
+  }
+
+  function saveStories(f) {
+    try { localStorage.setItem(STORE_STORIES, JSON.stringify(f)); } catch (e) { /* private mode */ }
+  }
+
+  function loadStories() {
+    fetch(STORIES_FEED).then(function (r) {
+      if (!r.ok) throw new Error('feed ' + r.status);
+      return r.text();
+    }).then(function (t) {
+      var f = parseFeed(t);
+      applyFeed(f);
+      saveStories(f);
+      S.feedErr = false;
+      listSettled();
+    }).catch(function () {
+      /* Offline, or the feed's host would not let a browser read it. The copy
+         kept from the last visit still plays; with nothing kept the panel says
+         so and points at the show. */
+      S.feedErr = !S.eps.length;
+      if (S.tab === 'stories') paintTracks();
+      listSettled();
+    });
+  }
+
+  function epNumber(i) { return S.eps.length - i; }
+
   function loadStats() {
     fetch(HOST + '/statistics').then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.stations) {
@@ -733,6 +1035,17 @@
     try { localStorage.setItem(STORE_TRACKS, JSON.stringify(j)); } catch (e) { /* private mode */ }
   }
 
+  /* A link that names a song or an episode has to wait for the list it is in,
+     and the two lists arrive separately. Whichever one answers gets its
+     chance at the link; the live stream is the fallback only once neither of
+     them turned out to have it. */
+  function listSettled() {
+    loadsLeft--;
+    if (!hashPending) return;
+    if (openHash()) { hashPending = false; return; }
+    if (loadsLeft <= 0) { hashPending = false; playRadio(); }
+  }
+
   function loadTracks() {
     fetch(TRACKS_MANIFEST).then(function (r) {
       if (!r.ok) throw new Error('no playlist');
@@ -740,7 +1053,8 @@
     }).then(function (j) {
       // What tuneIn() started, if anything, named by the one thing that
       // survives a reordering.
-      var open = S.mode === 'track' && S.tracks[S.ti] ? S.tracks[S.ti].slug : '';
+      var open = S.mode === 'track' && S.tracks[S.ti] ? S.tracks[S.ti].key : '';
+      var waiting = hashPending;
       applyManifest(j);
       saveManifest(j);
       keptTracks = false;
@@ -748,16 +1062,13 @@
       // A link that names a track opens on that track, and with nothing kept
       // this is the first moment it can. A slug that matches nothing — a
       // renamed track, a typo — is no reason to sit silent.
-      if (hashPending) {
-        hashPending = false;
-        if (!openHash()) playRadio();
-        return;
-      }
+      listSettled();
+      if (waiting) return;
 
       // The kept copy picked the track; the real playlist gets the last word
       // on where it sits, and on whether it is still there at all.
       if (open) {
-        var i = indexOfSlug(open);
+        var i = indexOfKey(S.tracks, open);
         if (i < 0) { playRadio(); return; }
         if (i !== S.ti) { S.ti = i; paintAll(); }
       }
@@ -765,7 +1076,7 @@
       // Offline, or the manifest is gone. Whatever was kept still plays; with
       // nothing kept the playlist is simply empty.
       if (!keptTracks) { S.tracks = []; paintTracks(); }
-      if (hashPending) { hashPending = false; playRadio(); }
+      listSettled();
     });
   }
 
@@ -805,38 +1116,51 @@
     el.netHours.textContent = ss ? num(ss.total_listen_hours) : '—';
   }
 
+  function showName() { return (S.show && S.show.name) || 'Omarchy Stories'; }
+  function showLink() { return (S.show && S.show.link) || STORIES_HOME; }
+
   function paintLcd() {
     var cur = STATIONS[S.st];
-    var t = S.mode === 'track' ? S.tracks[S.ti] : null;
+    var it = nowItem();
+    var story = S.mode === 'story' ? it : null;
+    var t = S.mode === 'track' ? it : null;
     var live = S.mode === 'radio';
 
-    el.stationLabel.textContent = cur.name.toLowerCase() + ' · ' + cur.tag;
-    el.srcLabel.textContent = live ? '◉ live stream' : 'playlist · track ' + (S.ti + 1);
+    el.stationLabel.textContent = story
+      ? showName().toLowerCase() + ' · ' + STORIES_TAG
+      : cur.name.toLowerCase() + ' · ' + cur.tag;
+    el.srcLabel.textContent = live
+      ? '◉ live stream'
+      : story
+        ? 'podcast · episode ' + epNumber(S.ti)
+        : 'playlist · track ' + (S.ti + 1);
 
     // Filled while the live stream is the source, dot blinking only when
     // it is actually playing rather than merely selected.
     el.backToRadio.classList.toggle('is-live', live);
     el.backToRadio.classList.toggle('is-onair', live && S.playing);
 
-    var marquee = t
-      ? (t.title + '  —  ' + t.artist)
+    var marquee = it
+      ? (it.title + '  —  ' + it.artist)
       : (S.icyTitle ? S.icyTitle : (S.icyName || cur.name) + '  —  ' + cur.tag);
     Array.prototype.forEach.call(el.marq.children, function (n) { n.textContent = marquee; });
 
     setMediaMeta(
-      t ? t.title : (S.icyTitle || S.icyName || cur.name),
-      t ? t.artist : (S.icyTitle ? (S.icyName || cur.name) : cur.tag)
+      it ? it.title : (S.icyTitle || S.icyName || cur.name),
+      it ? it.artist : (S.icyTitle ? (S.icyName || cur.name) : cur.tag)
     );
 
-    el.artist.textContent = t
-      ? (t.album || t.artist)
-      : [S.icyName || cur.name, S.icyGenre, S.icyTitle ? 'on air now' : 'continuous rotation']
-          .filter(Boolean).join(' · ');
+    el.artist.textContent = story
+      ? [showName(), dateLabel(story.ms), lengthLabel(story.secs)]
+          .filter(Boolean).join(' · ')
+      : t
+        ? (t.album || t.artist)
+        : [S.icyName || cur.name, S.icyGenre, S.icyTitle ? 'on air now' : 'continuous rotation']
+            .filter(Boolean).join(' · ');
 
     document.title = (S.playing ? marquee.replace(/\s+/g, ' ').trim() + ' — ' : '') +
       'Omarchy Radio';
 
-    el.playlistName.textContent = cur.name.toLowerCase();
     el.geoName.textContent = cur.name.toLowerCase();
     paintClock();
   }
@@ -853,6 +1177,7 @@
 
   function paintTransport() {
     setMediaState();
+    if (stateCell) stateCell.textContent = S.playing ? 'playing' : 'paused';
     el.playGlyph.textContent = S.playing ? '❙❙' : '▶';
     el.toggle.setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
     el.volRot.style.transform = 'rotate(' + (-135 + S.vol * 270) + 'deg)';
@@ -863,7 +1188,7 @@
     el.volKnob.style.setProperty('--v', S.vol.toFixed(4));
 
     // Nothing to scrub on a live stream.
-    el.seek.classList.toggle('is-live', S.mode !== 'track');
+    el.seek.classList.toggle('is-live', S.mode === 'radio');
   }
 
   function paintStats() {
@@ -912,9 +1237,11 @@
 
   // Slugs come from the title so a link reads as the song. Two tracks can
   // share a title, so the artist breaks the tie, and a number after that.
-  function assignSlugs(tracks) {
+  // The key is what a link and the sheet cache use: the songs have one
+  // namespace, the episodes another, and neither can shadow the other.
+  function assignSlugs(items, prefix) {
     var seen = {};
-    tracks.forEach(function (t) {
+    items.forEach(function (t) {
       var base = slugify(t.title) || 'track';
       var slug = base;
       if (seen[slug]) slug = base + '-' + slugify(t.artist);
@@ -922,16 +1249,17 @@
       while (seen[slug]) { slug = base + '-' + n; n++; }
       seen[slug] = true;
       t.slug = slug;
+      t.key = (prefix || '') + slug;
     });
   }
 
   function trackLink(t) {
-    return location.origin + location.pathname + '#' + t.slug;
+    return location.origin + location.pathname + '#' + t.key;
   }
 
-  function indexOfSlug(slug) {
-    for (var i = 0; i < S.tracks.length; i++) {
-      if (S.tracks[i].slug === slug) return i;
+  function indexOfKey(list, key) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].key === key) return i;
     }
     return -1;
   }
@@ -939,8 +1267,8 @@
   // replaceState, not push: stepping through a playlist should not build a
   // back stack the listener has to climb out of.
   function syncHash() {
-    var t = S.mode === 'track' ? S.tracks[S.ti] : null;
-    var want = t ? '#' + t.slug : '';
+    var it = nowItem();
+    var want = it ? '#' + it.key : '';
     if (location.hash === want) return;
     try {
       history.replaceState(null, '', want || location.pathname);
@@ -948,12 +1276,13 @@
   }
 
   function openHash() {
-    var slug = (location.hash || '').replace(/^#/, '');
-    if (!slug) return false;
-    var i = indexOfSlug(slug);
-    if (i < 0) return false;
-    playTrack(i);
-    return true;
+    var key = (location.hash || '').replace(/^#/, '');
+    if (!key) return false;
+    var i = indexOfKey(S.eps, key);
+    if (i >= 0) { playStory(i); return true; }
+    i = indexOfKey(S.tracks, key);
+    if (i >= 0) { playTrack(i); return true; }
+    return false;
   }
 
   function copyLink(t) {
@@ -968,11 +1297,41 @@
     }
   }
 
+  /* Which of the two lists is showing, in the switch and in the title over
+     it. The songs are a playlist of this station's own; the podcast is a
+     show that happens to be listenable here. */
+  function paintTabs() {
+    var stories = S.tab === 'stories';
+    el.tabSongs.classList.toggle('is-on', !stories);
+    el.tabPodcast.classList.toggle('is-on', stories);
+    el.tabSongs.setAttribute('aria-pressed', stories ? 'false' : 'true');
+    el.tabPodcast.setAttribute('aria-pressed', stories ? 'true' : 'false');
+    el.playlistKind.textContent = stories ? 'episodes' : 'playlist';
+    el.playlistName.textContent = stories
+      ? showName().toLowerCase()
+      : STATIONS[S.st].name.toLowerCase();
+    el.tracks.setAttribute('aria-label', stories ? 'Episodes' : 'Playlist');
+  }
+
+  function showTab(tab) {
+    if (S.tab === tab) return;
+    S.tab = tab;
+    // The sheet was opened on the other list's item; it does not follow.
+    S.lyricsOpen = false;
+    lyricsLine = -1;
+    el.tracks.scrollTop = 0;
+    paintAll();
+  }
+
   function paintTracks() {
+    var list = onScreenList();
+    var stories = S.tab === 'stories';
+    paintTabs();
+    stateCell = null;
     el.tracks.innerHTML = '';
     var frag = document.createDocumentFragment();
-    S.tracks.forEach(function (tr, i) {
-      var on = i === S.ti && S.mode === 'track';
+    list.forEach(function (tr, i) {
+      var on = i === S.ti && S.mode === (stories ? 'story' : 'track');
       var li = document.createElement('li');
       var b = document.createElement('button');
       b.type = 'button';
@@ -986,13 +1345,38 @@
           '</span>' +
           '<span class="tr-artist"></span>' +
         '</span>' +
-        '<span class="tr-s"></span>';
-      b.querySelector('.tr-n').textContent = String(i + 1).padStart(2, '0');
+        '<span class="tr-s"><span class="tr-st"></span><span class="tr-c" hidden></span></span>';
+      // Songs are numbered down the list. Episodes are numbered from the far
+      // end, because the newest is at the top and episode 01 is episode 01.
+      b.querySelector('.tr-n').textContent =
+        String(stories ? epNumber(i) : i + 1).padStart(2, '0');
       b.querySelector('.tr-title').textContent = tr.title;
       b.querySelector('.tr-ex').hidden = !tr.explicit;
-      b.querySelector('.tr-artist').textContent = tr.artist;
-      b.querySelector('.tr-s').textContent = on ? (S.playing ? 'playing' : 'paused') : '';
-      b.addEventListener('click', function () { playTrack(i); });
+      // An episode has no artist to name under the title: it has a date and
+      // a length, which are the two things worth knowing before pressing it.
+      b.querySelector('.tr-artist').textContent = stories
+        ? [dateLabel(tr.ms), lengthLabel(tr.secs)].filter(Boolean).join(' · ')
+        : tr.artist;
+      var state = b.querySelector('.tr-st');
+      state.textContent = on ? (S.playing ? 'playing' : 'paused') : '';
+      if (on) stateCell = state;
+
+      /* The episode playing is also the one whose row opens and closes. A
+         second press on a song starts it again, which is what a three-minute
+         song is for; a second press on the episode you are 20 minutes into
+         must never mean that, so it works the panel instead. */
+      var opens = stories && on;
+      if (opens) {
+        var caret = b.querySelector('.tr-c');
+        caret.hidden = false;
+        caret.textContent = S.epOpen ? '▾' : '▸';
+        b.setAttribute('aria-expanded', S.epOpen ? 'true' : 'false');
+      }
+      b.addEventListener('click', function () {
+        if (opens) toggleEpisode();
+        else if (stories) playStory(i);
+        else playTrack(i);
+      });
 
       var link = document.createElement('button');
       link.type = 'button';
@@ -1008,15 +1392,91 @@
       li.appendChild(b);
       li.appendChild(link);
       frag.appendChild(li);
+
+      // The episode playing opens under its own row: this is the panel about
+      // the show, so what the episode is and where its parts are belong here
+      // rather than behind a button that hides the list to say it. Closed, the
+      // list is a list of episodes again.
+      if (opens && S.epOpen) frag.appendChild(episodeBody(tr));
     });
     el.tracks.appendChild(frag);
     if (!S.lyricsOpen) paintTrackNote();
   }
 
+  function toggleEpisode() {
+    S.epOpen = !S.epOpen;
+    // The chapters go with the panel; nothing left on screen to follow.
+    if (!S.epOpen) sheetOn = { lines: null, node: null, scroll: null };
+    paintTracks();
+  }
+
+  function epHeading(text) {
+    var h = document.createElement('p');
+    h.className = 'ep-h';
+    h.textContent = text;
+    return h;
+  }
+
+  function episodeBody(ep) {
+    var li = document.createElement('li');
+    li.className = 'ep-open';
+
+    var chapters = ep.chapters && ep.chapters.length;
+    if (chapters) {
+      li.appendChild(epHeading(plural(ep.chapters.length, 'chapter') + ' · press one to jump'));
+      var ol = document.createElement('ol');
+      ol.className = 'ep-chapters';
+      // The same stamped sheet a lyric is, so it lights the chapter the
+      // episode is in and can be pressed to get there.
+      paintSheet({
+        lines: ep.chapters.map(function (c) { return { t: c.t, txt: c.txt }; }),
+        timed: true,
+        jump: true
+      }, ol, null);
+      li.appendChild(ol);
+    }
+
+    if (ep.notes && ep.notes.length) {
+      li.appendChild(epHeading('about this episode'));
+      var box = document.createElement('div');
+      box.className = 'ep-notes';
+      ep.notes.forEach(function (line) {
+        var p = document.createElement('p');
+        p.textContent = line;
+        box.appendChild(p);
+      });
+      li.appendChild(box);
+    }
+
+    if (!chapters && !(ep.notes && ep.notes.length)) {
+      li.appendChild(epHeading('the show sent no notes with this one'));
+    }
+    return li;
+  }
+
   function paintTrackNote() {
+    if (S.tab === 'stories') { paintStoryNote(); return; }
     el.playlistNote.textContent = S.tracks.length
       ? S.tracks.length + ' tracks on demand'
       : 'live rotation only — no track list on this stream';
+  }
+
+  /* The show is not ours, so the note says whose it is and where it lives —
+     the one place on the deck that leads to the podcast itself. */
+  function paintStoryNote() {
+    var note = el.playlistNote;
+    var href = showLink();
+    note.textContent = (S.eps.length
+      ? plural(S.eps.length, 'episode')
+      : S.feedErr
+        ? 'the feed would not load'
+        : 'reading the feed…') + ' · ';
+    var a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = href.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    note.appendChild(a);
   }
 
   /* ── lyrics ──────────────────────────────────────────
@@ -1074,9 +1534,18 @@
     paintLyrics();
   }
 
+  function seekTo(t) {
+    if (!nowItem()) return;
+    try { audio.currentTime = t; } catch (e) { return; }
+    S.cur = t;
+    paintClock();
+    // Pressing a chapter is asking to hear it, not to mark the place.
+    if (audio.paused) toggle();
+  }
+
   function loadLyrics(t) {
     var url = lyricsUrl(t);
-    var slug = t.slug;
+    var slug = t.key;
     if (!url) { sheets[slug] = 'none'; paintLyrics(); return; }
 
     sheets[slug] = 'loading';
@@ -1103,51 +1572,68 @@
 
   function scrollToLine(node) {
     if (Date.now() - handScrolled < 6000) return;
-    var box = el.lyrics;
+    var box = sheetOn.scroll;
     var to = node.offsetTop - (box.clientHeight / 2) + (node.offsetHeight / 2);
     autoScrolled = Date.now();
     box.scrollTop = Math.max(0, to);
   }
 
   // Which line the audio is on: the last one that has started.
-  function lineAt(sheet, at) {
+  function lineAt(lines, at) {
     var i = -1;
-    for (var n = 0; n < sheet.lines.length; n++) {
-      if (sheet.lines[n].t <= at) i = n; else break;
+    for (var n = 0; n < lines.length; n++) {
+      if (lines[n].t <= at) i = n; else break;
     }
     return i;
   }
 
+  /* Lights the line the audio is in, on whichever sheet is on screen. A sheet
+     in its own box scrolls itself to keep up; chapters sitting inside the
+     episode list do not, because that list is also how the listener is
+     looking through the show. */
   function syncLyrics() {
-    if (!S.lyricsOpen || S.mode !== 'track') return;
-    var sheet = sheets[lyricsSlug];
-    if (!sheet || !sheet.lines || !sheet.timed) return;
+    if (!sheetOn.lines || !nowItem()) return;
 
-    var i = lineAt(sheet, S.cur);
+    var i = lineAt(sheetOn.lines, S.cur);
     if (i === lyricsLine) return;
 
-    var was = el.lyrics.children[lyricsLine];
+    var was = sheetOn.node.children[lyricsLine];
     if (was) { was.classList.remove('is-on'); was.removeAttribute('aria-current'); }
 
     lyricsLine = i;
-    var now = el.lyrics.children[i];
+    var now = sheetOn.node.children[i];
     if (!now) return;
     now.classList.add('is-on');
     now.setAttribute('aria-current', 'true');
-    scrollToLine(now);
+    if (sheetOn.scroll) scrollToLine(now);
   }
 
-  function paintSheet(sheet) {
-    el.lyrics.innerHTML = '';
+  function paintSheet(sheet, node, scroll) {
+    node.innerHTML = '';
     var frag = document.createDocumentFragment();
     sheet.lines.forEach(function (l) {
       var li = document.createElement('li');
-      li.className = 'ly-line';
-      li.textContent = l.txt;
+      li.className = 'ly-line' + (sheet.jump ? ' ly-jump' : '');
+      if (sheet.jump) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.innerHTML = '<span class="ly-t"></span><span class="ly-x"></span>';
+        b.querySelector('.ly-t').textContent = fmt(l.t);
+        b.querySelector('.ly-x').textContent = l.txt;
+        b.setAttribute('aria-label', 'Play from ' + fmt(l.t) + ' — ' + l.txt);
+        b.addEventListener('click', function () { seekTo(l.t); });
+        li.appendChild(b);
+      } else {
+        li.textContent = l.txt;
+      }
       frag.appendChild(li);
     });
-    el.lyrics.appendChild(frag);
-    el.lyrics.classList.toggle('is-timed', sheet.timed);
+    node.appendChild(frag);
+    node.classList.toggle('is-timed', sheet.timed);
+    // Whatever was being followed is gone with the old lines.
+    sheetOn = sheet.timed
+      ? { lines: sheet.lines, node: node, scroll: scroll || null }
+      : { lines: null, node: null, scroll: null };
     lyricsLine = -1;
   }
 
@@ -1155,7 +1641,9 @@
      there at all, which of the two lists the box holds, and what the note
      under it says. Called from paintAll(), so changing track is enough. */
   function paintLyrics() {
-    var t = S.mode === 'track' ? S.tracks[S.ti] : null;
+    // A sheet is a song's. The podcast tab carries an episode's chapters and
+    // notes in the list itself, so there is nothing to toggle there.
+    var t = S.mode === 'track' && S.tab === 'songs' ? S.tracks[S.ti] : null;
 
     // Nothing to show for the live stream, and nothing to offer either.
     if (!t) {
@@ -1172,15 +1660,15 @@
     el.lyricsBox.hidden = !S.lyricsOpen;
     if (!S.lyricsOpen) { paintTrackNote(); return; }
 
-    if (t.slug !== lyricsSlug) {
-      lyricsSlug = t.slug;
+    if (t.key !== lyricsKey) {
+      lyricsKey = t.key;
       lyricsLine = -1;
       handScrolled = 0;
       el.lyrics.innerHTML = '';
       el.lyrics.scrollTop = 0;
     }
 
-    var sheet = sheets[lyricsSlug];
+    var sheet = sheets[lyricsKey];
     if (sheet === undefined) { loadLyrics(t); sheet = 'loading'; }
 
     if (sheet === 'loading') { el.playlistNote.textContent = 'looking for a sheet…'; return; }
@@ -1190,15 +1678,16 @@
       return;
     }
 
-    if (!el.lyrics.children.length) paintSheet(sheet);
+    if (!el.lyrics.children.length) paintSheet(sheet, el.lyrics, el.lyrics);
     el.playlistNote.textContent = sheet.timed
-      ? sheet.lines.length + ' lines · following the track'
-      : sheet.lines.length + ' lines';
+      ? plural(sheet.lines.length, 'line') + ' · following the track'
+      : plural(sheet.lines.length, 'line');
     syncLyrics();
   }
 
   function paintAll() {
     paintHeader();
+    paintTabs();
     paintLcd();
     paintTransport();
     paintStats();
@@ -1222,7 +1711,8 @@
 
   function setVol(v) {
     S.vol = Math.min(1, Math.max(0, v));
-    audio.volume = S.vol;
+    music.volume = S.vol;
+    pod.volume = S.vol;
     paintTransport();
   }
 
@@ -1277,11 +1767,14 @@
     g2d.fillRect(0, 0, w, h);
   }
 
+  // The analyser is wired to the music element. Anything else is simulated.
+  function analysing() { return !!analyser && !simVis && audio === music; }
+
   function frame() {
     var kids = el.vis.children;
     var n = lev.length;
 
-    if (analyser && !simVis) {
+    if (analysing()) {
       analyser.getByteFrequencyData(freq);
       var step = Math.floor(freq.length * 0.7 / n) || 1;
       for (var i = 0; i < n; i++) {
@@ -1329,7 +1822,8 @@
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
-      'playlistName', 'geoName', 'tracks', 'trHead', 'playlistNote', 'geoList', 'peak', 'status',
+      'playlistKind', 'playlistName', 'geoName', 'tracks', 'trHead', 'playlistNote',
+      'geoList', 'peak', 'status', 'tabSongs', 'tabPodcast',
       'lyricsBtn', 'lyricsBox', 'lyrics',
       'backToRadio', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
@@ -1356,11 +1850,13 @@
     el.next.addEventListener('click', next);
     el.prev.addEventListener('click', prev);
     el.backToRadio.addEventListener('click', playRadio);
+    el.tabSongs.addEventListener('click', function () { showTab('songs'); });
+    el.tabPodcast.addEventListener('click', function () { showTab('stories'); });
     el.lyricsBtn.addEventListener('click', toggleLyrics);
     el.lyrics.addEventListener('scroll', lyricsScrolledByHand);
 
     el.seek.addEventListener('click', function (e) {
-      if (S.mode !== 'track' || !S.dur) return;
+      if (!nowItem() || !S.dur) return;
       var r = e.currentTarget.getBoundingClientRect();
       var p = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
       audio.currentTime = p * S.dur;
@@ -1368,7 +1864,7 @@
       paintClock();
     });
     el.seek.addEventListener('keydown', function (e) {
-      if (S.mode !== 'track' || !S.dur) return;
+      if (!nowItem() || !S.dur) return;
       if (e.key === 'ArrowRight') { audio.currentTime = Math.min(S.dur, audio.currentTime + 5); e.preventDefault(); }
       if (e.key === 'ArrowLeft') { audio.currentTime = Math.max(0, audio.currentTime - 5); e.preventDefault(); }
     });
@@ -1399,6 +1895,7 @@
 
     tuneIn();
     loadTracks();
+    loadStories();
     loadStats();
     setInterval(loadStats, STATS_INTERVAL);
     setInterval(watchdog, 5000);
