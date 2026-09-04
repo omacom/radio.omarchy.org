@@ -59,9 +59,13 @@ render() { # <format> <width> <height> <outfile>
   [ -s "$tmp/$f.png" ] || { echo "browser wrote no screenshot for $f" >&2; exit 1; }
   local size
   size="$(python3 -c "
-import struct, sys
-print('%dx%d' % struct.unpack('>II', open(sys.argv[1],'rb').read(24)[16:24]))
-" "$tmp/$f.png")"
+import os, struct, sys
+path = os.path.realpath(sys.argv[1])
+sandbox = os.path.realpath(sys.argv[2]) + os.sep
+if not path.startswith(sandbox):
+    sys.exit('refusing to read outside sandbox: ' + path)
+print('%dx%d' % struct.unpack('>II', open(path,'rb').read(24)[16:24]))
+" "$tmp/$f.png" "$tmp")"
   [ "$size" = "${w}x${h}" ] || { echo "$f: expected ${w}x${h}, got $size" >&2; exit 1; }
 
   mv "$tmp/$f.png" "$out"
