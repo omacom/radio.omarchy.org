@@ -1,167 +1,177 @@
 {
-  "station": "omarchy",
-  "name": "Omarchy",
-  "tracks": [
-    {
-      "title": "Omarchy Oligarchy (Synthwave Mix)",
-      "artist": "YZL81",
-      "file": "YZL81 - Omarchy Oligarchy (Synthwave Mix).mp3"
-    },
-    {
-      "title": "Still Licensed",
-      "artist": "Michel Krapf",
-      "file": "Michel Krapf - Still Licensed.mp3"
-    },
-    {
-      "title": "public code, private yacht",
-      "artist": "Kevin Koontz",
-      "file": "Kevin Koontz - public code, private yacht.mp3"
-    },
-    {
-      "title": "Beware the Omarchy Oligarchy",
-      "artist": "Rich Kilmer",
-      "file": "Rich Kilmer - Beware the Omarchy Oligarchy.mp3"
-    },
-    {
-      "title": "It's fucking fork o clock",
-      "artist": "Boyd",
-      "file": "Boyd - It's fucking fork o clock.mp3",
-      "explicit": true
-    },
-    {
-      "title": "Take Control of Me",
-      "artist": "Jon Håvard Gundersen",
-      "file": "Jon Håvard Gundersen - Take Control of Me.mp3"
-    },
-    {
-      "title": "Play the Machine",
-      "artist": "Dan T.",
-      "file": "Dan T. - Play the Machine.mp3"
-    },
-    {
-      "title": "Get hyped up - shipping on a Sunday!",
-      "artist": "Jimi Plouffe",
-      "file": "Jimi Plouffe - Get hyped up - shipping on a Sunday!.mp3"
-    },
-    {
-      "title": "Downstream from Motivation",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Downstream from Motivation.mp3"
-    },
-    {
-      "title": "Dotfiles to Distro",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Dotfiles to Distro.mp3"
-    },
-    {
-      "title": "I Wanted Arch, Not a Second Job",
-      "artist": "Nick Hamze",
-      "file": "Nick Hamze - I Wanted Arch, Not a Second Job.mp3"
-    },
-    {
-      "title": "Quattro (Let's Go, Nerds)",
-      "artist": "Patrick Castiglia",
-      "file": "Patrick Castiglia - Quattro (Let's Go, Nerds).mp3"
-    },
-    {
-      "title": "Quattro!",
-      "artist": "rav3ndust",
-      "file": "rav3ndust - Quattro!.mp3"
-    },
-    {
-      "title": "Omarchy, Oligarchy",
-      "artist": "Rich Kilmer",
-      "file": "Rich Kilmer - Omarchy, Oligarchy.mp3"
-    },
-    {
-      "title": "Omakase Machine",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Omakase Machine.mp3"
-    },
-    {
-      "title": "We Can Fix Everything",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - We Can Fix Everything.mp3"
-    },
-    {
-      "title": "Omarchee, c'est la vie",
-      "artist": "Aurélien",
-      "file": "Aurélien - Omarchee, c'est la vie.mp3"
-    },
-    {
-      "title": "Hyprland After Dark",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Hyprland After Dark.mp3"
-    },
-    {
-      "title": "Boot Up Your New Digital World",
-      "artist": "Suvikyi",
-      "file": "Suvikyi - Boot Up Your New Digital World.mp3"
-    },
-    {
-      "title": "Oh-Mah-Chee",
-      "artist": "tommyent",
-      "file": "tommyent - Oh-Mah-Chee.mp3"
-    },
-    {
-      "title": "Omarchy!",
-      "artist": "Cam",
-      "file": "Cam - Omarchy!.mp3"
-    },
-    {
-      "title": "It's Not Omarchy, It's Me",
-      "artist": "Nick Hamze",
-      "file": "Nick Hamze - It's Not Omarchy, It's Me.mp3"
-    },
-    {
-      "title": "Kind of Slaps",
-      "artist": "xxsteven69xx",
-      "file": "xxsteven69xx - Kind of Slaps.mp3"
-    },
-    {
-      "title": "Super Space",
-      "artist": "Nick Hamze",
-      "file": "Nick Hamze - Super Space.mp3"
-    },
-    {
-      "title": "No Title Bar",
-      "artist": "Obstinatus",
-      "file": "Obstinatus - No Title Bar.mp3"
-    },
-    {
-      "title": "David Picked It",
-      "artist": "Patrick Johnson",
-      "file": "Patrick Johnson - David Picked It.mp3"
-    },
-    {
-      "title": "Write the Missing Plugin",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Write the Missing Plugin.mp3"
-    },
-    {
-      "title": "Quattro Saves Mankind",
-      "artist": "Carlos Lisboa",
-      "file": "Carlos Lisboa - Quattro Saves Mankind.mp3"
-    },
-    {
-      "title": "prOdiMARCHY",
-      "artist": "Corey",
-      "file": "Corey - prOdiMARCHY.mp3"
-    },
-    {
-      "title": "Omarchy Quattro",
-      "artist": "Ryan R. Hughes",
-      "file": "Ryan R. Hughes - Omarchy Quattro.mp3"
-    },
-    {
-      "title": "Omarchy Party",
-      "artist": "Thomas AKB",
-      "file": "Thomas AKB - Omarchy Party.mp3"
-    },
-    {
-      "title": "Take Me, Lead Me, Show Me the Way",
-      "artist": "TriciaAmazingyear",
-      "file": "TriciaAmazingyear - Take Me, Lead Me, Show Me the Way.mp3"
-    }
-  ]
+    "station":  "omarchy",
+    "name":  "Omarchy",
+    "tracks":  [
+                   {
+                       "title":  "Omarchy Oligarchy (Synthwave Mix)",
+                       "artist":  "YZL81",
+                       "file":  "YZL81 - Omarchy Oligarchy (Synthwave Mix).mp3"
+                   },
+                   {
+                       "title":  "Still Licensed",
+                       "artist":  "Michel Krapf",
+                       "file":  "Michel Krapf - Still Licensed.mp3"
+                   },
+                   {
+                       "title":  "public code, private yacht",
+                       "artist":  "Kevin Koontz",
+                       "file":  "Kevin Koontz - public code, private yacht.mp3"
+                   },
+                   {
+                       "title":  "Beware the Omarchy Oligarchy",
+                       "artist":  "Rich Kilmer",
+                       "file":  "Rich Kilmer - Beware the Omarchy Oligarchy.mp3"
+                   },
+                   {
+                       "title":  "It\u0027s fucking fork o clock",
+                       "artist":  "Boyd",
+                       "file":  "Boyd - It\u0027s fucking fork o clock.mp3",
+                       "explicit":  true
+                   },
+                   {
+                       "title":  "Take Control of Me",
+                       "artist":  "Jon HÃƒÂ¥vard Gundersen",
+                       "file":  "Jon HÃƒÂ¥vard Gundersen - Take Control of Me.mp3"
+                   },
+                   {
+                       "title":  "Play the Machine",
+                       "artist":  "Dan T.",
+                       "file":  "Dan T. - Play the Machine.mp3"
+                   },
+                   {
+                       "title":  "Get hyped up - shipping on a Sunday!",
+                       "artist":  "Jimi Plouffe",
+                       "file":  "Jimi Plouffe - Get hyped up - shipping on a Sunday!.mp3"
+                   },
+                   {
+                       "title":  "Downstream from Motivation",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Downstream from Motivation.mp3"
+                   },
+                   {
+                       "title":  "Dotfiles to Distro",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Dotfiles to Distro.mp3"
+                   },
+                   {
+                       "title":  "I Wanted Arch, Not a Second Job",
+                       "artist":  "Nick Hamze",
+                       "file":  "Nick Hamze - I Wanted Arch, Not a Second Job.mp3"
+                   },
+                   {
+                       "title":  "Quattro (Let\u0027s Go, Nerds)",
+                       "artist":  "Patrick Castiglia",
+                       "file":  "Patrick Castiglia - Quattro (Let\u0027s Go, Nerds).mp3"
+                   },
+                   {
+                       "title":  "Quattro!",
+                       "artist":  "rav3ndust",
+                       "file":  "rav3ndust - Quattro!.mp3"
+                   },
+                   {
+                       "title":  "Omarchy, Oligarchy",
+                       "artist":  "Rich Kilmer",
+                       "file":  "Rich Kilmer - Omarchy, Oligarchy.mp3"
+                   },
+                   {
+                       "title":  "Omakase Machine",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Omakase Machine.mp3"
+                   },
+                   {
+                       "title":  "We Can Fix Everything",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - We Can Fix Everything.mp3"
+                   },
+                   {
+                       "title":  "Omarchee, c\u0027est la vie",
+                       "artist":  "AurÃƒÂ©lien",
+                       "file":  "AurÃƒÂ©lien - Omarchee, c\u0027est la vie.mp3"
+                   },
+                   {
+                       "title":  "Hyprland After Dark",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Hyprland After Dark.mp3"
+                   },
+                   {
+                       "title":  "Boot Up Your New Digital World",
+                       "artist":  "Suvikyi",
+                       "file":  "Suvikyi - Boot Up Your New Digital World.mp3"
+                   },
+                   {
+                       "title":  "Oh-Mah-Chee",
+                       "artist":  "tommyent",
+                       "file":  "tommyent - Oh-Mah-Chee.mp3"
+                   },
+                   {
+                       "title":  "Omarchy!",
+                       "artist":  "Cam",
+                       "file":  "Cam - Omarchy!.mp3"
+                   },
+                   {
+                       "title":  "It\u0027s Not Omarchy, It\u0027s Me",
+                       "artist":  "Nick Hamze",
+                       "file":  "Nick Hamze - It\u0027s Not Omarchy, It\u0027s Me.mp3"
+                   },
+                   {
+                       "title":  "Kind of Slaps",
+                       "artist":  "xxsteven69xx",
+                       "file":  "xxsteven69xx - Kind of Slaps.mp3"
+                   },
+                   {
+                       "title":  "Super Space",
+                       "artist":  "Nick Hamze",
+                       "file":  "Nick Hamze - Super Space.mp3"
+                   },
+                   {
+                       "title":  "No Title Bar",
+                       "artist":  "Obstinatus",
+                       "file":  "Obstinatus - No Title Bar.mp3"
+                   },
+                   {
+                       "title":  "David Picked It",
+                       "artist":  "Patrick Johnson",
+                       "file":  "Patrick Johnson - David Picked It.mp3"
+                   },
+                   {
+                       "title":  "Write the Missing Plugin",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Write the Missing Plugin.mp3"
+                   },
+                   {
+                       "title":  "Quattro Saves Mankind",
+                       "artist":  "Carlos Lisboa",
+                       "file":  "Carlos Lisboa - Quattro Saves Mankind.mp3"
+                   },
+                   {
+                       "title":  "prOdiMARCHY",
+                       "artist":  "Corey",
+                       "file":  "Corey - prOdiMARCHY.mp3"
+                   },
+                   {
+                       "title":  "Omarchy Quattro",
+                       "artist":  "Ryan R. Hughes",
+                       "file":  "Ryan R. Hughes - Omarchy Quattro.mp3"
+                   },
+                   {
+                       "title":  "Omarchy Party",
+                       "artist":  "Thomas AKB",
+                       "file":  "Thomas AKB - Omarchy Party.mp3"
+                   },
+                   {
+                       "title":  "Take Me, Lead Me, Show Me the Way",
+                       "artist":  "TriciaAmazingyear",
+                       "file":  "TriciaAmazingyear - Take Me, Lead Me, Show Me the Way.mp3"
+                   },
+                   {
+                       "title":  "Root Access",
+                       "artist":  "Rooke Poole",
+                       "file":  "Rooke Poole - Root Access.mp3"
+                   },
+                   {
+                       "title":  "Root Access",
+                       "artist":  "Rooke Poole",
+                       "file":  "Rooke Poole - Root Access.mp3"
+                   }
+               ]
 }
