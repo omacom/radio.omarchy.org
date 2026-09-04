@@ -11,7 +11,7 @@
 
    Bump VERSION to retire every old cache on the next activate. */
 
-var VERSION = 'v2';
+var VERSION = 'v4';
 var SHELL = 'omarchy-radio-' + VERSION;
 
 var ASSETS = [
@@ -21,6 +21,7 @@ var ASSETS = [
   'assets/css/style.css',
   'assets/css/fonts.css',
   'assets/js/app.js',
+  'assets/js/station-player.js',
   'assets/fonts/jetbrains-mono-latin.woff2',
   'assets/fonts/space-grotesk-latin.woff2',
   'assets/fonts/vt323-latin.woff2',
@@ -63,6 +64,7 @@ self.addEventListener('fetch', function (e) {
 
   // The stream and its stats live on another origin. Leave them alone.
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname === '/station-config.js') return;
 
   // Large and ranged. A cached 206 would come back as a broken track.
   if (/\.mp3$/i.test(url.pathname) || req.headers.get('range')) return;

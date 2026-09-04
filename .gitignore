@@ -1,2 +1,7 @@
 .DS_Store
 *.log
+
+.env
+var/
+node_modules/
+var-*/

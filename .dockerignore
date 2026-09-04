@@ -1,0 +1,6 @@
+.git
+.env
+var
+node_modules
+
+var-*

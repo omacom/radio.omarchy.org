@@ -1,0 +1,19 @@
+{
+  "name": "omarchy-agentic-radio",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "test": "node --test test/*.test.mjs",
+    "analyze:tracks": "node scripts/analyze-tracks.mjs",
+    "aircheck": "node scripts/aircheck.mjs",
+    "plan:programme": "node --env-file-if-exists=.env scripts/plan-programme.mjs",
+    "configure:station": "node scripts/configure-station.mjs",
+    "prepare:catalog": "node --env-file-if-exists=.env scripts/prepare-catalog.mjs",
+    "dev:web": "node scripts/serve-web.mjs",
+    "demo": "node scripts/demo.mjs"
+  }
+}

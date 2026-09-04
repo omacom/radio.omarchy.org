@@ -1,3 +1,5 @@
+import { RadioPlayer } from './station-player.js';
+
 /* Omarchy Radio — player logic.
    Vanilla reimplementation of the source design's component: theme derivation,
    ICY metadata parsing, live statistics, Web Audio analysis and the canvas
@@ -7,6 +9,11 @@
   'use strict';
 
   var HOST = 'https://radio.cliamp.stream';
+  var sharedStation = !!window.OMARCHY_STATION;
+  var stationPlayer = sharedStation ? new RadioPlayer({baseURL: typeof window.OMARCHY_STATION === 'string' ? window.OMARCHY_STATION : ''}) : null;
+  var stationSlot = null;
+  var djEnabled = true;
+  try { djEnabled = localStorage.getItem('omarchy-dj') !== 'off'; } catch (e) {}
 
   // On-demand tracks live in the repo so they can arrive by pull request.
   // The live stream still comes from HOST.
@@ -394,8 +401,8 @@
       // An engine that does not know an action throws rather than ignoring it.
       try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) { /* skip */ }
     }
-    on('play', function () { if (audio && audio.paused) toggle(); });
-    on('pause', function () { if (audio && !audio.paused) toggle(); });
+    on('play', function () { if (!S.playing) toggle(); });
+    on('pause', function () { if (S.playing) toggle(); });
     on('stop', stop);
     on('nexttrack', next);
     on('previoustrack', prev);
@@ -452,6 +459,7 @@
   // Covers the silent case: still nominally playing, but no audio has
   // arrived for a while and no event ever fired.
   function watchdog() {
+    if (sharedStation && S.mode === 'radio') return;
     if (intent !== 'play' || retryTimer) return;
     if (!audio || audio.paused) return;
     if (Date.now() - lastProgress < STALL_AFTER) return;
@@ -475,7 +483,7 @@
     if (analysed) a.crossOrigin = 'anonymous';
     a.volume = S.vol;
 
-    function mine() { return audio === a; }
+    function mine() { return audio === a && !(sharedStation && S.mode === 'radio'); }
 
     a.addEventListener('timeupdate', function () {
       if (!mine()) return;
@@ -617,6 +625,27 @@
   }
 
   function play(src, mode, ti) {
+    if (stationPlayer) stationPlayer.stop();
+    if (sharedStation && mode === 'radio') {
+      S.mode = mode; S.ti = -1; S.cur = 0; S.dur = 0;
+      intent = 'play'; loadedSrc = src; cancelReconnect(); stopMeta();
+      music.pause(); pod.pause();
+      stationPlayer.setVolume(S.vol); stationPlayer.setDJ(djEnabled);
+      stationPlayer.onState = function (status, playing) {
+        if (S.mode !== 'radio' || intent !== 'play') return;
+        S.playing = playing; setStatus(status); paintTransport();
+      };
+      stationPlayer.onMetadata = function (slot) {
+        if (S.mode !== 'radio' || !slot || stationSlot?.id === slot.id) return;
+        stationSlot = slot;
+        S.icyTitle = slot.title + ' — ' + slot.artist + (slot.explicit ? ' [explicit]' : '');
+        S.icyName = 'Omarchy Radio'; paintLcd();
+      };
+      stationPlayer.start().catch(function () { arm(src, mode, ti); });
+      if (!gestured) arm(src, mode, ti);
+      paintAll(); return;
+    }
+    stationSlot = null;
     intent = 'play';
     loadedSrc = src;
     useElement(mode === 'story' ? pod : music);
@@ -666,6 +695,15 @@
   }
 
   function toggle() {
+    if (sharedStation && S.mode === 'radio') {
+      if (stationPlayer.running && stationPlayer.context?.state === 'suspended') {
+        intent = 'play'; armed = null; stationPlayer.resume().catch(function () {}); return;
+      }
+      if (stationPlayer.running) {
+        intent = 'pause'; stationPlayer.stop(); S.playing = false; setStatus('paused'); paintTransport();
+      } else playRadio();
+      return;
+    }
     if (!audio.paused) { intent = 'pause'; cancelReconnect(); audio.pause(); return; }
     intent = 'play';
     var want = wantedSrc();
@@ -678,6 +716,8 @@
   }
 
   function stop() {
+    if (stationPlayer) stationPlayer.stop();
+    stationSlot = null;
     intent = 'stop';
     cancelReconnect();
     stopMeta();
@@ -790,6 +830,7 @@
      it downloaded the station around the clock for every open tab, and
      the server counted each one as a listener. */
   function startMeta() {
+    if (sharedStation) return;
     if (metaAbort) metaAbort.abort();
     if (S.mode !== 'radio') { metaAbort = null; return; }
     var ac = new AbortController();
@@ -1026,7 +1067,8 @@
   function epNumber(i) { return S.eps.length - i; }
 
   function loadStats() {
-    fetch(HOST + '/statistics').then(function (r) { return r.json(); }).then(function (j) {
+    var endpoint = sharedStation ? (typeof window.OMARCHY_STATION === 'string' ? new URL('/api/statistics', window.OMARCHY_STATION).href : '/api/statistics') : HOST + '/statistics';
+    fetch(endpoint).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.stations) {
         S.stats = j;
         paintStats();
@@ -1139,6 +1181,7 @@
     var story = S.mode === 'story' ? it : null;
     var t = S.mode === 'track' ? it : null;
     var live = S.mode === 'radio';
+    document.getElementById('djToggle').hidden = !sharedStation || !live;
 
     el.stationLabel.textContent = story
       ? showName().toLowerCase() + ' · ' + STORIES_TAG
@@ -1733,6 +1776,7 @@
     S.vol = Math.min(1, Math.max(0, v));
     music.volume = S.vol;
     pod.volume = S.vol;
+    if (stationPlayer) stationPlayer.setVolume(S.vol);
     paintTransport();
   }
 
@@ -1913,6 +1957,22 @@
     measureFit();
     requestAnimationFrame(frame);
 
+    var djToggle = document.getElementById('djToggle');
+    function paintDJ() {
+      djToggle.textContent = djEnabled ? 'DJ on' : 'DJ off';
+      djToggle.setAttribute('aria-pressed', String(djEnabled));
+    }
+    paintDJ();
+    djToggle.addEventListener('click', function () {
+      djEnabled = !djEnabled; if (stationPlayer) stationPlayer.setDJ(djEnabled);
+      try { localStorage.setItem('omarchy-dj', djEnabled ? 'on' : 'off'); } catch (e) {}
+      paintDJ();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (sharedStation && !document.hidden && intent === 'play' && S.mode === 'radio' && stationPlayer.running) {
+        stationPlayer.resume().catch(function () {});
+      }
+    });
     tuneIn();
     loadTracks();
     if (SHOW_PODCAST) loadStories();
@@ -1921,6 +1981,7 @@
     setInterval(watchdog, 5000);
 
     window.addEventListener('online', function () {
+      if (sharedStation && S.mode === 'radio') { if (stationPlayer.running) void stationPlayer.fill(); return; }
       if (intent !== 'play' || (audio && !audio.paused)) return;
       cancelReconnect(); // a fresh link earns a fresh budget
       reconnectNow();

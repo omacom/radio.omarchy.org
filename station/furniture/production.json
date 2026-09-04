@@ -1,0 +1,23 @@
+{
+  "provider": "ElevenLabs",
+  "createdAt": "2026-09-04T21:25:06.368Z",
+  "requests": [
+    {
+      "file": "bed-30.mp3",
+      "music_length_ms": 30000,
+      "force_instrumental": true,
+      "prompt": "A restrained 30 second instrumental radio presentation bed for Omarchy Radio, an independent Linux community station. Warm minimal analog synth pulse, soft rounded bass, subtle electronic percussion, 104 BPM, polished late night alternative radio. Spacious middle with no lead melody, no voices, no singing, no samples or sound effects that resemble speech. A subtle opening sonic logo, steady quiet texture under a presenter, and a clean resolved ending. This is station furniture under speech, not a full song."
+    },
+    {
+      "file": "jingle.mp3",
+      "music_length_ms": 5000,
+      "force_instrumental": true,
+      "prompt": "A five second professional radio station sonic logo: playful three note analog synthesizer motif, warm rounded bass hit, crisp electronic sparkle, stylish and understated, a subtle nod to vintage computer startup sounds. No voice, no vocals, no singing. Brief energetic opening and a clean resolved final note. For an independent electronic community radio station."
+    }
+  ],
+  "idents": [
+    "Omarchy Radio. Made by the community.",
+    "Your desktop. Your music. Omarchy Radio."
+  ],
+  "description": "Prerecorded station furniture. The catalogue music is unchanged."
+}
