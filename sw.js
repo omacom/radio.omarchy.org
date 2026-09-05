@@ -9,27 +9,38 @@
    it is cached like the playlist and an episode list is there offline. The
    episode audio is the show's host's and is left alone, like the stream.
 
+   Every song and every episode is a page of its own, written by
+   tools/build-routes.py. There are too many to precache and no reason to:
+   a page is cached the first time it is opened, and any page never opened
+   falls back to the shell, which reads the address and routes itself. Paths
+   are written from the site root here, as they are everywhere else, because
+   a page at /playlist/<song> would resolve a relative one against
+   /playlist/.
+
    Bump VERSION to retire every old cache on the next activate. */
 
-var VERSION = 'v3';
+var VERSION = 'v4';
 var SHELL = 'omarchy-radio-' + VERSION;
+var PAGE = '/index.html';
 
 var ASSETS = [
-  './',
-  'index.html',
-  'site.webmanifest',
-  'assets/css/style.css',
-  'assets/css/fonts.css',
-  'assets/js/app.js',
-  'assets/fonts/jetbrains-mono-latin.woff2',
-  'assets/fonts/space-grotesk-latin.woff2',
-  'assets/fonts/vt323-latin.woff2',
-  'assets/images/favicon.svg',
-  'assets/images/icon-192.png',
-  'assets/images/icon-512.png',
-  'assets/images/apple-touch-icon.png',
-  'tracks/playlist.json',
-  'stories/feed.rss'
+  '/',
+  PAGE,
+  '/playlist',
+  '/podcast',
+  '/site.webmanifest',
+  '/assets/css/style.css',
+  '/assets/css/fonts.css',
+  '/assets/js/app.js',
+  '/assets/fonts/jetbrains-mono-latin.woff2',
+  '/assets/fonts/space-grotesk-latin.woff2',
+  '/assets/fonts/vt323-latin.woff2',
+  '/assets/images/favicon.svg',
+  '/assets/images/icon-192.png',
+  '/assets/images/icon-512.png',
+  '/assets/images/apple-touch-icon.png',
+  '/tracks/playlist.json',
+  '/stories/feed.rss'
 ];
 
 self.addEventListener('install', function (e) {
@@ -68,18 +79,25 @@ self.addEventListener('fetch', function (e) {
   // Large and ranged. A cached 206 would come back as a broken track.
   if (/\.mp3$/i.test(url.pathname) || req.headers.get('range')) return;
 
-  // Always try the network for the page itself, so a deploy is picked up
-  // rather than pinned by whatever was cached first. Cache is the offline
-  // fallback, not the source of truth.
+  /* Always try the network for a page, so a deploy is picked up rather than
+     pinned by whatever was cached first, and keep the copy that comes back
+     under its own address: the page for a song is not the page for the deck.
+     Offline, the page itself if it has been opened before, and the shell if
+     it has not — the shell reads the address and routes to the same place. */
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(function (r) {
-        var copy = r.clone();
-        caches.open(SHELL).then(function (c) { c.put('index.html', copy); });
+        if (r && r.status === 200 && r.type === 'basic') {
+          var copy = r.clone();
+          caches.open(SHELL).then(function (c) { c.put(req, copy); });
+        }
         return r;
       }).catch(function () {
-        return caches.match('index.html').then(function (hit) {
-          return hit || caches.match('./');
+        return caches.match(req, { ignoreSearch: true }).then(function (hit) {
+          if (hit) return hit;
+          return caches.match(PAGE).then(function (shell) {
+            return shell || caches.match('/');
+          });
         });
       })
     );

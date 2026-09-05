@@ -2,8 +2,8 @@
   "name": "Omarchy Radio",
   "short_name": "Omarchy Radio",
   "description": "Omarchy Radio",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0b0a",
@@ -14,25 +14,25 @@
   ],
   "icons": [
     {
-      "src": "assets/images/icon-192.png",
+      "src": "/assets/images/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/images/icon-512.png",
+      "src": "/assets/images/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/images/icon-maskable-512.png",
+      "src": "/assets/images/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "assets/images/favicon.svg",
+      "src": "/assets/images/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -45,14 +45,14 @@
   ],
   "screenshots": [
     {
-      "src": "assets/images/screenshot-wide.png",
+      "src": "/assets/images/screenshot-wide.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
       "label": "Omarchy Radio player"
     },
     {
-      "src": "assets/images/screenshot-narrow.png",
+      "src": "/assets/images/screenshot-narrow.png",
       "sizes": "720x1280",
       "type": "image/png",
       "form_factor": "narrow",

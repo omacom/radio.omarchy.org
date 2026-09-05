@@ -1,0 +1,59 @@
+# Writes the page that sits behind every permalink.
+#
+# Every song has an address of its own, /playlist/<song>, and on a static host
+# that means a file of its own. Contributors send a song, not a song and the
+# thirty-odd files a new song changes, so the pages are written here instead:
+# add the MP3 and three lines of tracks/playlist.json, and the page, the card
+# and the sitemap entry arrive on the next push.
+#
+# tools/build-routes.py is the whole job, and it is safe to run by hand.
+# tools/test-routes.py is the check that matters: the slugs the deck computes
+# in the browser have to be the ones the pages were written under, or a link
+# opens a page for a song the deck cannot find.
+#
+# The podcast half of the same work is in stories.yml, which runs hourly
+# because that is when the show publishes. Both push to main, so both sit in
+# the same concurrency group.
+
+name: routes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tracks/playlist.json'
+      - 'index.html'
+      - 'tools/build-routes.py'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write the page behind every permalink
+        run: python3 tools/build-routes.py
+
+      - name: Check that the deck and the pages agree about every address
+        run: python3 tools/test-routes.py
+
+      - name: Commit the pages, if the sources moved them
+        run: |
+          if git diff --quiet; then
+            echo "nothing to write"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Write the pages behind the permalinks'
+          # A push of these lands on main while somebody may be pushing to it.
+          git pull --rebase --autostash
+          git push

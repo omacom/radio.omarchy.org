@@ -44,6 +44,11 @@ ul, ol { list-style: none; }
 a { color: var(--ac); text-decoration: none; }
 a:hover { color: var(--fg); }
 
+/* The rows of the playlist are links to the tracks they name, and the deck
+   routes them itself. They carry their own colours — the accent is what a
+   playing row wears — so they opt out of the two an ordinary link gets. */
+a.track, a.track:hover { color: inherit; }
+
 button {
   font: inherit;
   color: inherit;
@@ -64,7 +69,7 @@ button {
 
 /* Touch: no grey flash on tap, and the drag controls must claim the gesture
    or the page pans out from under a finger mid-drag. */
-button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
+a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .seek, .knob { touch-action: none; -webkit-user-select: none; user-select: none; }
 
 @keyframes marq { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }

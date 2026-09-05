@@ -20,7 +20,9 @@ The live stream is separate and is not affected by anything in this folder.
 }
 ```
 
-That is the whole entry. There is no id to invent and no count to bump.
+That is the whole entry. There is no id to invent and no count to bump. The
+song's own page — `radio.omarchy.org/playlist/<title>` — is written for you
+when the pull request lands, along with its card and its sitemap entry.
 
 ## Fields
 
@@ -89,3 +91,13 @@ python3 -m http.server 8000
 
 Your track should appear in the playlist panel and play when clicked. If it
 does not, the usual cause is `file` not matching the filename on disk.
+
+To see the page behind its permalink, write the pages first and serve them the
+way the host does:
+
+```bash
+python3 tools/build-routes.py     # write the page for every song
+python3 tools/test-routes.py      # check every address answers with its page
+```
+
+Neither is required of a pull request: a workflow runs them when it lands.

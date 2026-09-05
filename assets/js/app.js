@@ -8,11 +8,16 @@
 
   var HOST = 'https://radio.cliamp.stream';
 
+  // Where this deck lives, for the canonical link the routes keep level with
+  // whatever is playing. The pages themselves are written with it too, by
+  // tools/build-routes.py.
+  var CANON = 'https://radio.omarchy.org';
+
   // On-demand tracks live in the repo so they can arrive by pull request.
   // The live stream still comes from HOST.
-  var TRACKS_DIR = 'tracks/';
-  var TRACKS_MANIFEST = 'tracks/playlist.json';
-  var LYRICS_DIR = 'tracks/lyrics/';
+  var TRACKS_DIR = '/tracks/';
+  var TRACKS_MANIFEST = '/tracks/playlist.json';
+  var LYRICS_DIR = '/tracks/lyrics/';
 
   /* Omarchy Stories is a podcast rather than a folder, so its episodes are
      read from the show's feed at load: the show publishes, the deck follows,
@@ -33,7 +38,7 @@
      not on the GET a plain read makes; mirroring the file means the player
      never has to ask. The episode audio is still fetched from the host, so
      their download figures still count what they always counted. */
-  var STORIES_FEED = 'stories/feed.rss';
+  var STORIES_FEED = '/stories/feed.rss';
   var STORIES_TAG = 'from the community';
   var STORIES_HOME = 'https://omarchystories.org';
   var ITUNES_NS = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
@@ -166,6 +171,7 @@
     eps: [],
     show: null,    // what the feed says the show is called, and where it lives
     tab: 'songs',  // which of the two lists the panel is showing
+    route: '',     // the list the address is naming while nothing is playing
     epOpen: true,  // the playing episode is showing what it is about
     feedErr: false,
     playing: false,
@@ -200,7 +206,7 @@
   var gestured = false; // the listener has touched the page at least once
   var wiring = false; // an audio graph waiting on its context to start
   var armed = null; // an autoplay the browser refused, waiting for a gesture
-  var hashPending = false; // a link named a track; the manifest decides which
+  var linkPending = false; // a link named a track; the lists decide which
   var loadsLeft = SHOW_PODCAST ? 2 : 1; // a link waits on the lists there are
   var keptTracks = false; // the playlist on screen is the copy from last visit
   var sheets = {}; // key -> parsed sheet, or why there is not one
@@ -643,28 +649,33 @@
     paintAll();
   }
 
-  function playRadio() {
+  function playRadio(how) {
     play(HOST + '/' + STATIONS[S.st].slug + '/stream', 'radio', -1);
-    syncHash();
+    syncRoute(how);
     startMeta();
   }
 
   /* An item on demand carries its own title, so the live feed's metadata is
      not needed while one plays. */
-  function playFrom(list, mode, i) {
+  function playFrom(list, mode, i, how) {
     var it = list[i];
     if (!it) return;
     play(it.url, mode, i);
-    syncHash();
+    syncRoute(how);
     stopMeta();
   }
 
-  function playTrack(i) { S.tab = 'songs'; playFrom(S.tracks, 'track', i); }
+  function playTrack(i, how) {
+    S.tab = 'songs';
+    S.route = 'playlist';
+    playFrom(S.tracks, 'track', i, how);
+  }
 
-  function playStory(i) {
+  function playStory(i, how) {
     S.tab = 'stories';
+    S.route = 'podcast';
     S.epOpen = true; // an episode just chosen shows what it is
-    playFrom(S.eps, 'story', i);
+    playFrom(S.eps, 'story', i, how);
   }
 
   function toggle() {
@@ -757,27 +768,76 @@
     });
   }
 
-  /* A link that names a track has to know which one, and the slugs come from
-     the manifest, so a fetch stood between the arrival and its sound. That is
+  /* A link names one item out of a list, and the slugs come from the list,
+     so a fetch used to stand between the arrival and the sound. That is
      silence on the one visit that asked for a particular song, and on engines
-     whose gesture expires it is the permission gone with it. The copy kept
-     from the last visit answers now instead; loadTracks() confirms it a
-     moment later. The live stream has nothing to look up either way. */
+     where the press that opened the link expires, it is the permission gone
+     with it.
+
+     So the deck asks three things in turn, and the first to answer wins: the
+     copy of the list kept from the last visit, then the item baked into this
+     very page by tools/build-routes.py, then — for a link the pages here do
+     not know, which is how a brand new episode arrives — the lists as they
+     load, in listSettled(). The live stream has nothing to look up either
+     way, and is the answer when nothing else is. */
   function tuneIn() {
-    var key = (location.hash || '').replace(/^#/, '');
-    if (!key) { playRadio(); return; }
-    if (/^stories\//.test(key)) {
-      // A copy kept from when the podcast was on is not a reason to play it
-      // now. With the list gone the link has nothing to open, and
-      // listSettled() falls back to the station.
+    var r = here();
+    if (!r.known || !r.kind) { playRadio('replace'); return; }
+    S.route = r.kind;
+
+    // A list, rather than something in one: read it while the stream plays.
+    if (!r.slug) { setTab(LISTS[r.kind].tab); playRadio('replace'); return; }
+
+    restoreList(r.kind);
+    if (navigate(r, 'replace')) return;
+    if (seedRoute(r) && navigate(r, 'replace')) return;
+    linkPending = true;
+  }
+
+  // What was kept from the last visit. The whole list, so it goes on screen
+  // in full rather than as the one row a link named.
+  function restoreList(kind) {
+    if (kind === 'podcast') {
+      /* A copy kept from when the podcast was switched on is not a reason to
+         play it now: with the list gone the link has nothing to open. */
       var feed = SHOW_PODCAST ? readStories() : null;
-      if (feed) applyFeed(feed);
-    } else {
-      var kept = readManifest();
-      if (kept) { applyManifest(kept); keptTracks = true; }
+      if (!feed) return false;
+      applyFeed(feed);
+      return true;
     }
-    if (openHash()) return;
-    hashPending = true; // nothing kept, or kept from before this one existed
+    var kept = readManifest();
+    if (!kept) return false;
+    applyManifest(kept);
+    keptTracks = true;
+    return true;
+  }
+
+  /* The item this page was generated for. It answers when there is no kept
+     list, and when what was kept is older than the item the link names —
+     which is the case for every first visit from a shared link, the visit
+     that most needs the sound to start. */
+  function seedRoute(r) {
+    var raw = window.__ITEM__;
+    if (!raw || raw.kind !== r.kind || raw.slug !== r.slug) return false;
+
+    // The build knows the slug it wrote the page under, so it is taken
+    // rather than worked out again from the title.
+    var it = raw.kind === 'playlist' ? resolveTrack(raw) : raw;
+    it.kind = raw.kind;
+    it.slug = raw.slug;
+    it.key = raw.kind + '/' + raw.slug;
+
+    if (raw.kind === 'podcast') {
+      if (!SHOW_PODCAST) return false;
+      // Newer than the copy of the feed served from here, which is how it
+      // came to be missing from it, and newest is the top of that list.
+      S.eps = [it].concat(S.eps);
+    } else {
+      S.tracks = S.tracks.concat([it]);
+      keptTracks = true; // the manifest still gets the last word
+    }
+    if (S.tab === LISTS[raw.kind].tab) paintTracks();
+    return true;
   }
 
   /* ── network ─────────────────────────────────────────── */
@@ -993,7 +1053,7 @@
   function applyFeed(f) {
     S.show = { name: f.show, link: f.link };
     S.eps = f.episodes || [];
-    assignSlugs(S.eps, 'stories/');
+    assignSlugs(S.eps, 'podcast');
     if (S.tab === 'stories') paintTracks();
   }
 
@@ -1039,7 +1099,7 @@
 
   function applyManifest(j) {
     S.tracks = ((j && j.tracks) || []).map(resolveTrack);
-    assignSlugs(S.tracks);
+    assignSlugs(S.tracks, 'playlist');
     paintTracks();
   }
 
@@ -1057,9 +1117,16 @@
      them turned out to have it. */
   function listSettled() {
     loadsLeft--;
-    if (!hashPending) return;
-    if (openHash()) { hashPending = false; return; }
-    if (loadsLeft <= 0) { hashPending = false; playRadio(); }
+    if (!linkPending) return;
+    if (navigate(here(), 'replace')) { linkPending = false; return; }
+    if (loadsLeft <= 0) {
+      // Neither list had it: a renamed track, a typo, or an episode the show
+      // published since the copy of the feed here was mirrored. The stream is
+      // never the wrong answer, and the address stops claiming otherwise.
+      linkPending = false;
+      S.route = '';
+      playRadio('replace');
+    }
   }
 
   function loadTracks() {
@@ -1070,7 +1137,7 @@
       // What tuneIn() started, if anything, named by the one thing that
       // survives a reordering.
       var open = S.mode === 'track' && S.tracks[S.ti] ? S.tracks[S.ti].key : '';
-      var waiting = hashPending;
+      var waiting = linkPending;
       applyManifest(j);
       saveManifest(j);
       keptTracks = false;
@@ -1085,7 +1152,7 @@
       // on where it sits, and on whether it is still there at all.
       if (open) {
         var i = indexOfKey(S.tracks, open);
-        if (i < 0) { playRadio(); return; }
+        if (i < 0) { playRadio('replace'); return; }
         if (i !== S.ti) { S.ti = i; paintAll(); }
       }
     }).catch(function () {
@@ -1174,8 +1241,15 @@
         : [S.icyName || cur.name, S.icyGenre, S.icyTitle ? 'on air now' : 'continuous rotation']
             .filter(Boolean).join(' · ');
 
-    document.title = (S.playing ? marquee.replace(/\s+/g, ' ').trim() + ' — ' : '') +
-      'Omarchy Radio';
+    /* The tab names the address, the way the title the page was served with
+       does — a song's page still reads as the song while it is paused, which
+       is how a listener finds it again among twenty tabs. The live stream has
+       no page of its own, so there it names whatever is on air. */
+    document.title = story
+      ? story.title + ' · ' + showName()
+      : t
+        ? t.title + ' by ' + t.artist + ' · Omarchy Radio'
+        : (S.playing ? marquee.replace(/\s+/g, ' ').trim() + ' · ' : '') + 'Omarchy Radio';
 
     paintClock();
   }
@@ -1235,10 +1309,32 @@
     el.geoList.appendChild(frag);
   }
 
-  /* ── deep links ──────────────────────────────────────
-     Every track has a URL, and opening one plays that track rather than the
-     live stream. The address bar follows whatever is playing, so the link
-     worth sharing is always the one already in it. */
+  /* ── routing ────────────────────────────────────
+     The address is the state. Two lists, each with a path of its own:
+
+       /                      the live stream
+       /playlist              the songs
+       /playlist/<song>       that song, playing
+       /podcast               the episodes
+       /podcast/<episode>     that episode, playing
+
+     Those are real pages. tools/build-routes.py writes one per item, so a
+     link that is shared arrives as a document of its own: the song's name in
+     the tab, its own card where it is pasted, and the item itself baked into
+     the page so the sound can start before anything is fetched.
+
+     From there it is one deck. Pressing a row swaps the audio and rewrites
+     the address, and nothing reloads — which is what keeps following a link
+     from costing the listener whatever they were already hearing.
+
+     Everything the deck does to the address goes through syncRoute().
+     Everything the listener does to it — a link, the back button, a path
+     typed by hand — comes back in through navigate(). */
+
+  var LISTS = {
+    playlist: { tab: 'songs',   mode: 'track', list: function () { return S.tracks; } },
+    podcast:  { tab: 'stories', mode: 'story', list: function () { return S.eps; } }
+  };
 
   function slugify(str) {
     var s = String(str || '');
@@ -1252,10 +1348,16 @@
 
   // Slugs come from the title so a link reads as the song. Two tracks can
   // share a title, so the artist breaks the tie, and a number after that.
-  // The key is what a link and the sheet cache use: the songs have one
-  // namespace, the episodes another, and neither can shadow the other.
-  function assignSlugs(items, prefix) {
-    var seen = {};
+  // The key is the path: the songs have one namespace, the episodes another,
+  // and neither can shadow the other.
+  //
+  // A bare {} would inherit "constructor" and the rest from Object, so a song
+  // by that name would read as a clash with something that is not there. The
+  // slugs also have to agree with tools/build-routes.py, which computes them
+  // again for the pages it writes; tools/test-routes.py checks that the two
+  // implementations still say the same thing.
+  function assignSlugs(items, kind) {
+    var seen = Object.create(null);
     items.forEach(function (t) {
       var base = slugify(t.title) || 'track';
       var slug = base;
@@ -1264,12 +1366,9 @@
       while (seen[slug]) { slug = base + '-' + n; n++; }
       seen[slug] = true;
       t.slug = slug;
-      t.key = (prefix || '') + slug;
+      t.kind = kind;
+      t.key = kind + '/' + slug;
     });
-  }
-
-  function trackLink(t) {
-    return location.origin + location.pathname + '#' + t.key;
   }
 
   function indexOfKey(list, key) {
@@ -1279,29 +1378,154 @@
     return -1;
   }
 
-  // replaceState, not push: stepping through a playlist should not build a
-  // back stack the listener has to climb out of.
-  function syncHash() {
-    var it = nowItem();
-    var want = it ? '#' + it.key : '';
-    if (location.hash === want) return;
-    try {
-      history.replaceState(null, '', want || location.pathname);
-    } catch (e) { /* file:// and the like */ }
+  function permalink(t) { return location.origin + '/' + t.key; }
+
+  /* Tolerant on the way in, exact on the way out. A trailing slash, the
+     .html of the file that served the page, a capital letter, an escaped
+     character: all of them name the same route, and the deck then writes the
+     one spelling worth sharing.
+
+     An address this deck does not own is reported as such rather than guessed
+     at, so a link to a track file or to the feed is left to the browser. */
+  function parseRoute(pathname, hash) {
+    var p = String(pathname || '/');
+    try { p = decodeURIComponent(p); } catch (e) { /* leave it as typed */ }
+    p = p.toLowerCase()
+      .replace(/\/index\.html?$/, '/')
+      .replace(/\.html?$/, '')
+      .replace(/\/+$/, '');
+    var seg = p.split('/').filter(Boolean);
+
+    if (!seg.length) return fromHash(hash);
+    if (!LISTS[seg[0]] || seg.length > 2) return stray();
+    return route(seg[0], seg.length > 1 ? seg[1] : '', false);
   }
 
-  function openHash() {
-    var key = (location.hash || '').replace(/^#/, '');
-    if (!key) return false;
-    var i = indexOfKey(S.eps, key);
-    if (i >= 0) { playStory(i); return true; }
-    i = indexOfKey(S.tracks, key);
-    if (i >= 0) { playTrack(i); return true; }
-    return false;
+  /* The links from before there were paths: /#song, and /#stories/episode.
+     The slug is the part worth keeping, so they resolve here and the address
+     is rewritten to the page that now holds them. */
+  function fromHash(hash) {
+    var h = String(hash || '').replace(/^#/, '');
+    try { h = decodeURIComponent(h); } catch (e) { /* as typed */ }
+    h = h.toLowerCase();
+    if (!h) return route('', '', false);
+    var m = /^(stories|podcast|playlist)\/(.+)$/.exec(h);
+    if (m) return route(m[1] === 'playlist' ? 'playlist' : 'podcast', m[2], true);
+    if (/^[a-z0-9][a-z0-9-]*$/.test(h)) return route('playlist', h, true);
+    return route('', '', false); // a fragment that names no track: it is home
+  }
+
+  function route(kind, slug, legacy) {
+    return {
+      kind: kind,
+      slug: String(slug || '').replace(/[^a-z0-9-]/g, ''),
+      known: true,
+      legacy: !!legacy
+    };
+  }
+
+  function stray() { return { kind: '', slug: '', known: false, legacy: false }; }
+
+  function here() { return parseRoute(location.pathname, location.hash); }
+
+  /* The path for what the deck is showing: the item playing, if the panel is
+     showing the list it came out of, and otherwise the list being read. Home
+     is the live stream, which is where a visit that named nothing starts. */
+  function wantedPath() {
+    var it = nowItem();
+    var showing = S.tab === 'stories' ? 'podcast' : 'playlist';
+    if (it && it.kind === showing) return '/' + it.key;
+    return S.route ? '/' + S.route : '/';
+  }
+
+  /* Pressing a row is a navigation and earns a history entry: back returns
+     the listener where they came from, the way a link should. Stepping with
+     the transport buttons, or a track ending into the next one, does not —
+     that would bury the way out under a playlist's worth of entries. */
+  function syncRoute(how) {
+    var want = wantedPath();
+    if (location.pathname + location.hash !== want) {
+      try {
+        if (how === 'push' && location.pathname !== want) history.pushState(null, '', want);
+        else history.replaceState(null, '', want);
+      } catch (e) { /* file:// and the like */ }
+    }
+    paintCanonical();
+  }
+
+  // The card a crawler or a chat window reads comes from the generated page,
+  // but a deck that has been navigated for an hour should still not be
+  // claiming to be a different song than the one it is playing.
+  function paintCanonical() {
+    var link = document.querySelector('link[rel="canonical"]');
+    if (link) link.setAttribute('href', CANON + wantedPath());
+  }
+
+  /* Applies a route that came from outside: a link, the back button, a path
+     typed by hand, or the page the listener arrived on. False means the route
+     names an item that is not in the list — a renamed track, a typo, an
+     episode published since the feed here was mirrored — and the caller
+     decides whether to wait for the lists or fall back to the stream. */
+  function navigate(r, how) {
+    if (!r.known) return false;
+
+    if (!r.kind) {
+      // Home is the front of the deck: the live stream, and the songs.
+      S.route = '';
+      setTab('songs');
+      playRadio(how); // which repaints, the tabs and the list with it
+      return true;
+    }
+
+    var spec = LISTS[r.kind];
+    if (!r.slug) { showTab(spec.tab, how); return true; }
+
+    var i = indexOfKey(spec.list(), r.kind + '/' + r.slug);
+    if (i < 0) return false;
+
+    /* Already the one playing: the back button landing on what is in the
+       room, or a second press on the row that is going. Show it, do not
+       start it again — twenty minutes into an episode, that is the whole
+       difference between following a link and losing your place. */
+    if (S.mode === spec.mode && S.ti === i) {
+      if (S.tab !== spec.tab) showTab(spec.tab, 'replace');
+      else syncRoute(how);
+      return true;
+    }
+
+    if (r.kind === 'podcast') playStory(i, how);
+    else playTrack(i, how);
+    return true;
+  }
+
+  /* A press on a link inside the deck is handled here rather than by the
+     browser, so the audio survives it. Everything that makes a link a link is
+     left alone: a modified press, a middle press, one that opens in a new tab,
+     and any address this deck does not route. */
+  function wireLinks() {
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+
+      var u;
+      try { u = new URL(a.getAttribute('href'), location.href); } catch (err) { return; }
+      if (u.origin !== location.origin) return;
+
+      var r = parseRoute(u.pathname, u.hash);
+      if (!r.known) return; // a file, the feed, some other page: let it load
+
+      e.preventDefault();
+      if (navigate(r, 'push')) return;
+      // Ours, and it names nothing this deck is holding. The page may well
+      // exist, so let the browser go and get it rather than sitting here.
+      location.href = u.href;
+    });
   }
 
   function copyLink(t) {
-    var url = trackLink(t);
+    var url = permalink(t);
     function fell_back() { setStatus(url); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(function () {
@@ -1322,8 +1546,10 @@
     el.seg.hidden = !SHOW_PODCAST;
     el.tabSongs.classList.toggle('is-on', !stories);
     el.tabPodcast.classList.toggle('is-on', stories);
-    el.tabSongs.setAttribute('aria-pressed', stories ? 'false' : 'true');
-    el.tabPodcast.setAttribute('aria-pressed', stories ? 'true' : 'false');
+    // aria-current, not aria-pressed: these are links to the two lists, and
+    // the one being read is the current page rather than a button held down.
+    setCurrent(el.tabSongs, !stories);
+    setCurrent(el.tabPodcast, stories);
     el.playlistKind.textContent = stories ? 'episodes' : 'playlist';
     el.playlistName.textContent = stories
       ? showName().toLowerCase()
@@ -1331,15 +1557,26 @@
     el.tracks.setAttribute('aria-label', stories ? 'Episodes' : 'Playlist');
   }
 
-  function showTab(tab) {
-    if (tab === 'stories' && !SHOW_PODCAST) return;
-    if (S.tab === tab) return;
+  function setTab(tab) {
+    if (S.tab === tab) return false;
     S.tab = tab;
     // The sheet was opened on the other list's item; it does not follow.
     S.lyricsOpen = false;
     lyricsLine = -1;
     el.tracks.scrollTop = 0;
-    paintAll();
+    return true;
+  }
+
+  function setCurrent(a, on) {
+    if (on) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+
+  function showTab(tab, how) {
+    if (tab === 'stories' && !SHOW_PODCAST) return;
+    S.route = tab === 'stories' ? 'podcast' : 'playlist';
+    if (setTab(tab)) paintAll();
+    syncRoute(how);
   }
 
   function paintTracks() {
@@ -1352,8 +1589,12 @@
     list.forEach(function (tr, i) {
       var on = i === S.ti && S.mode === (stories ? 'story' : 'track');
       var li = document.createElement('li');
-      var b = document.createElement('button');
-      b.type = 'button';
+      /* A row is a link to the item it names: it can be opened in a tab of
+         its own, copied out of the context menu, and read by anything that
+         reads links. The press itself is still handled here, so following
+         one costs nothing of what is already playing. */
+      var b = document.createElement('a');
+      b.href = '/' + tr.key;
       b.className = 'track' + (on ? ' is-on' : '');
       b.innerHTML =
         '<span class="tr-n"></span>' +
@@ -1391,19 +1632,27 @@
         caret.textContent = S.epOpen ? '▾' : '▸';
         b.setAttribute('aria-expanded', S.epOpen ? 'true' : 'false');
       }
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (ev) {
+        // A modified press is the listener asking the browser for a tab of
+        // its own, and the href is there so that they get one.
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+        ev.preventDefault();
         if (opens) toggleEpisode();
-        else if (stories) playStory(i);
-        else playTrack(i);
+        else if (stories) playStory(i, 'push');
+        else playTrack(i, 'push');
       });
 
-      var link = document.createElement('button');
-      link.type = 'button';
+      // The same address, as the thing it is: press it and it is on the
+      // clipboard, hold a modifier and the browser opens it.
+      var link = document.createElement('a');
+      link.href = '/' + tr.key;
       link.className = 'tr-link';
       link.textContent = '#';
-      link.title = 'Copy link to this track';
+      link.title = 'Permalink — press to copy';
       link.setAttribute('aria-label', 'Copy link to ' + tr.title);
       link.addEventListener('click', function (ev) {
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+        ev.preventDefault();
         ev.stopPropagation();
         copyLink(tr);
       });
@@ -1468,7 +1717,9 @@
     }
 
     if (!chapters && !(ep.notes && ep.notes.length)) {
-      li.appendChild(epHeading('the show sent no notes with this one'));
+      li.appendChild(epHeading(ep.provisional
+        ? 'reading the feed for what is in this one…'
+        : 'the show sent no notes with this one'));
     }
     return li;
   }
@@ -1870,9 +2121,6 @@
     el.stop.addEventListener('click', stop);
     el.next.addEventListener('click', next);
     el.prev.addEventListener('click', prev);
-    el.backToRadio.addEventListener('click', playRadio);
-    el.tabSongs.addEventListener('click', function () { showTab('songs'); });
-    el.tabPodcast.addEventListener('click', function () { showTab('stories'); });
     el.lyricsBtn.addEventListener('click', toggleLyrics);
     el.lyrics.addEventListener('scroll', lyricsScrolledByHand);
 
@@ -1933,8 +2181,24 @@
     wireMediaSession();
     wireInstall();
 
-    // Someone editing the hash, or following a second link in the same tab.
-    window.addEventListener('hashchange', function () { openHash(); });
+    /* The back and forward buttons, and any address typed over the one in
+       the bar. A route that names nothing here is not a reason to go quiet,
+       so the stream answers and the address says so. */
+    window.addEventListener('popstate', function () {
+      var r = here();
+      if (navigate(r, 'replace')) return;
+      S.route = r.known ? r.kind : '';
+      playRadio('replace');
+    });
+
+    /* A link from before the paths existed, followed in this tab: the
+       fragment changes without the page moving, and popstate says nothing. */
+    window.addEventListener('hashchange', function () {
+      var r = here();
+      if (r.legacy) navigate(r, 'replace');
+    });
+
+    wireLinks();
 
     if (!volumeIsSettable()) {
       var vw = el.volKnob.closest('.knob-wrap');
@@ -1943,7 +2207,7 @@
 
     if ('serviceWorker' in navigator) {
       // Nothing here depends on it, so a failure is not worth reporting.
-      navigator.serviceWorker.register('sw.js').catch(function () { /* fine without */ });
+      navigator.serviceWorker.register('/sw.js').catch(function () { /* fine without */ });
     }
   }
 

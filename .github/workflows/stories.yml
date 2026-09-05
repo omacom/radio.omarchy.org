@@ -6,7 +6,8 @@
 #
 # The job writes a commit only when the show has actually published
 # something: the feed is stamped with the time of the request, so an hourly
-# mirror that compared the whole file would write 24 commits a day.
+# mirror that compared the whole file would write 24 commits a day. The
+# stamp is dropped before the comparison, in tools/fetch-stories.py.
 #
 # Note that GitHub turns off a scheduled workflow in a repository nobody has
 # pushed to for 60 days, and emails to say so. Any commit turns it back on.
@@ -20,9 +21,10 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
 
-# Two runs writing the same file would race each other to push it.
+# Two runs writing the same file would race each other to push it, and
+# routes.yml pushes the same pages when the playlist moves.
 concurrency:
-  group: stories
+  group: pages
 
 permissions:
   contents: write
@@ -38,14 +40,24 @@ jobs:
       - name: Read the feed
         run: python3 tools/fetch-stories.py
 
+      # An episode has an address of its own, /podcast/<episode>, and on a
+      # static host that means a page of its own. This is where a new one gets
+      # written, along with the sitemap entry that points at it.
+      - name: Write the page behind every episode
+        run: python3 tools/build-routes.py
+
+      - name: Check that the deck and the pages agree about every address
+        run: python3 tools/test-routes.py
+
       - name: Commit it, if the show published something
         run: |
-          if git diff --quiet -- stories/feed.rss; then
+          if git diff --quiet; then
             echo "nothing new"
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add stories/feed.rss
+          git add -A
           git commit -m 'Bring the podcast feed up to date'
+          git pull --rebase --autostash
           git push
