@@ -20,18 +20,20 @@
      origin's feed needs that origin's permission — if the list is ever empty,
      that is what to check, and this is the one line to point somewhere that
      grants it. */
-  /* Off until the feed's host sends the header a browser needs to read it:
-     Riverside answer the preflight with it and the GET without, and a plain
-     read never asks for a preflight, so there is nothing to put behind the
-     button yet. Everything below it works — turn this back on when either
-     Riverside send it or a host we control passes the feed through. */
-  var SHOW_PODCAST = false;
+  var SHOW_PODCAST = true;
 
   /* Off while there are no sheets in tracks/lyrics/. The button would open a
      box that says there is nothing in it, on every song. */
   var SHOW_LYRICS = false;
 
-  var STORIES_FEED = 'https://api.riverside.com/hosting/1i59HjrN.rss';
+  /* The show's own feed, mirrored into this repo every hour by
+     .github/workflows/stories.yml, and read from here rather than from the
+     show's host. A browser will not read another site's feed unless that site
+     sends a header saying it may, and Riverside send it on the preflight but
+     not on the GET a plain read makes; mirroring the file means the player
+     never has to ask. The episode audio is still fetched from the host, so
+     their download figures still count what they always counted. */
+  var STORIES_FEED = 'stories/feed.rss';
   var STORIES_TAG = 'from the community';
   var STORIES_HOME = 'https://omarchystories.org';
   var ITUNES_NS = 'http://www.itunes.com/dtds/podcast-1.0.dtd';

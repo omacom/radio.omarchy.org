@@ -5,13 +5,13 @@
    stream is an endless response, and the on-demand tracks are served as
    range requests, where storing a partial response breaks seeking.
 
-   The podcast feed and its episodes are another origin's and are left alone
-   here; the player keeps its own copy of the episode list so a link to one
-   still opens offline.
+   The podcast feed is served from here now, mirrored hourly by a workflow, so
+   it is cached like the playlist and an episode list is there offline. The
+   episode audio is the show's host's and is left alone, like the stream.
 
    Bump VERSION to retire every old cache on the next activate. */
 
-var VERSION = 'v2';
+var VERSION = 'v3';
 var SHELL = 'omarchy-radio-' + VERSION;
 
 var ASSETS = [
@@ -28,7 +28,8 @@ var ASSETS = [
   'assets/images/icon-192.png',
   'assets/images/icon-512.png',
   'assets/images/apple-touch-icon.png',
-  'tracks/playlist.json'
+  'tracks/playlist.json',
+  'stories/feed.rss'
 ];
 
 self.addEventListener('install', function (e) {

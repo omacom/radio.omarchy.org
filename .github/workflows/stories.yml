@@ -1,0 +1,51 @@
+# Keeps stories/feed.rss level with the show.
+#
+# The player reads the episode list out of this repo rather than from the
+# show's host, so this is what makes a new episode appear on the deck. The
+# audio is still the host's, so their download figures are unaffected.
+#
+# The job writes a commit only when the show has actually published
+# something: the feed is stamped with the time of the request, so an hourly
+# mirror that compared the whole file would write 24 commits a day.
+#
+# Note that GitHub turns off a scheduled workflow in a repository nobody has
+# pushed to for 60 days, and emails to say so. Any commit turns it back on.
+
+name: stories
+
+on:
+  schedule:
+    # Hourly, off the hour. Everything on GitHub is scheduled at :00, and the
+    # queue there is long enough that a job can run many minutes late.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+# Two runs writing the same file would race each other to push it.
+concurrency:
+  group: stories
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails loudly on a feed that will not load, is not a feed, or has lost
+      # every episode, and in each of those cases leaves the copy here alone.
+      - name: Read the feed
+        run: python3 tools/fetch-stories.py
+
+      - name: Commit it, if the show published something
+        run: |
+          if git diff --quiet -- stories/feed.rss; then
+            echo "nothing new"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stories/feed.rss
+          git commit -m 'Bring the podcast feed up to date'
+          git push
