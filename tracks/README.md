@@ -1,9 +1,10 @@
 # Tracks
 
-The on-demand playlist for Omarchy Radio. Every track here is served straight
-from the repo, so adding one is a pull request.
+The playlist for Omarchy Radio, and the whole of what the deck plays. Every
+track here is served straight from the repo, so adding one is a pull request.
 
-The live stream is separate and is not affected by anything in this folder.
+The order in `playlist.json` is the order it plays in, from the top, round
+again at the end.
 
 ## Add a track
 

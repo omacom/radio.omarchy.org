@@ -1,20 +1,21 @@
 /* Omarchy Radio — player logic.
-   Vanilla reimplementation of the source design's component: theme derivation,
-   ICY metadata parsing, live statistics, Web Audio analysis and the canvas
-   background. No dependencies. */
+   Theme derivation, Web Audio analysis and the canvas background. No
+   dependencies.
+
+   There is no live stream. The playlist is the station: it starts itself on
+   arrival, plays in order, and goes round again at the end. Everything the
+   deck plays is a file in this repo, which is why every one of them has an
+   address of its own. */
 
 (function () {
   'use strict';
-
-  var HOST = 'https://radio.cliamp.stream';
 
   // Where this deck lives, for the canonical link the routes keep level with
   // whatever is playing. The pages themselves are written with it too, by
   // tools/build-routes.py.
   var CANON = 'https://radio.omarchy.org';
 
-  // On-demand tracks live in the repo so they can arrive by pull request.
-  // The live stream still comes from HOST.
+  // The tracks live in the repo so they can arrive by pull request.
   var TRACKS_DIR = '/tracks/';
   var TRACKS_MANIFEST = '/tracks/playlist.json';
   var LYRICS_DIR = '/tracks/lyrics/';
@@ -43,7 +44,6 @@
   var STORIES_HOME = 'https://omarchystories.org';
   var ITUNES_NS = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
   var BAR_COUNT = 56;
-  var STATS_INTERVAL = 30000;
   var CANVAS_W = 1180;
   var CANVAS_H = 880;
   var STORE_KEY = 'omarchy-radio-skin';
@@ -77,9 +77,8 @@
     { name: 'white',            bg: '#ffffff', fg: '#000000', ac: '#6e6e6e', bd: '#c0c0c0' }
   ];
 
-  var STATIONS = [
-    { slug: 'omarchy',     name: 'Omarchy',           tag: 'the house station' }
-  ];
+  // What the deck calls itself while a song is playing out of the playlist.
+  var STATION = { name: 'Omarchy', tag: 'community playlist' };
 
   var $ = function (id) { return document.getElementById(id); };
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -154,19 +153,11 @@
     return Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
   }
 
-  function num(n) {
-    if (n == null) return '—';
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'm';
-    if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k';
-    return String(Math.round(n));
-  }
-
   /* ── state ───────────────────────────────────────────── */
 
   var S = {
-    st: 0,
-    mode: 'radio', // 'radio' | 'track' | 'story'
-    ti: -1,        // index into whichever list the mode names
+    mode: 'track', // 'track' | 'story' — which list is playing
+    ti: -1,        // index into it, -1 before the playlist has started
     tracks: [],
     eps: [],
     show: null,    // what the feed says the show is called, and where it lives
@@ -182,10 +173,6 @@
     themeOpen: false,
     lyricsOpen: false,
     status: 'ready',
-    stats: null,
-    icyTitle: '',
-    icyName: '',
-    icyGenre: '',
     fit: 1
   };
 
@@ -200,13 +187,18 @@
   var lev = new Float32Array(BAR_COUNT);
   var amp = 0;
   var simVis = true;
-  var audio, music, pod, ctx, analyser, freq, metaAbort, dpr = 1;
+  var audio, music, pod, ctx, analyser, freq, dpr = 1;
   var loadedSrc = '';
   var intent = 'idle'; // 'play' | 'pause' | 'stop' — what the listener last asked for
   var gestured = false; // the listener has touched the page at least once
   var wiring = false; // an audio graph waiting on its context to start
   var armed = null; // an autoplay the browser refused, waiting for a gesture
   var linkPending = false; // a link named a track; the lists decide which
+  /* Whether the listener named the item that is playing, by following a link
+     or pressing a row, as against the deck having started the playlist by
+     itself. Only a named item takes over the address: /, /playlist and
+     /podcast are pages of their own and stay where they are. */
+  var chose = false;
   var loadsLeft = SHOW_PODCAST ? 2 : 1; // a link waits on the lists there are
   var keptTracks = false; // the playlist on screen is the copy from last visit
   var sheets = {}; // key -> parsed sheet, or why there is not one
@@ -410,12 +402,12 @@
   }
 
   /* ── reconnect ───────────────────────────────────────
-     A live stream drops for ordinary reasons: a flaky link, a laptop
-     waking, the server cycling. The element reports that as 'error', as a
-     bare 'ended', or sometimes as nothing at all, which is what the
-     watchdog below is for. Retry only while the listener still wants
-     sound, back off so a server that is down is not hammered, and say so
-     rather than going quiet when the attempts run out. */
+     A track stops arriving for ordinary reasons: a flaky link, a laptop
+     waking, a host having a bad minute. The element reports that as 'error'
+     or sometimes as nothing at all, which is what the watchdog below is for.
+     Retry only while the listener still wants sound, back off rather than
+     hammering, and say so rather than going quiet when the attempts run
+     out. */
 
   var RETRY_MAX = 8;
   var STALL_AFTER = 15000; // no progress for this long counts as a drop
@@ -438,9 +430,7 @@
     paintTransport();
 
     if (retryN >= RETRY_MAX) {
-      setStatus(S.mode === 'radio'
-        ? 'stream unreachable — press play'
-        : 'that one would not play');
+      setStatus('that one would not play');
       return;
     }
 
@@ -467,9 +457,9 @@
   }
 
   /* Two elements, one deck. The analyser can only be handed a source it is
-     allowed to read: the songs are served from this origin and the stream
-     sends the header, so those run through the graph and drive a real
-     spectrum. An episode comes from the show's host, whose download link
+     allowed to read: the songs are served from this origin, so they run
+     through the graph and drive a real spectrum. An episode comes from the
+     show's host, whose download link
      redirects through an address that sends no such header, and a source the
      graph is not allowed to read is silence rather than an error. So episodes
      play on an element the graph never touches, and the bars simulate while
@@ -493,11 +483,10 @@
       paintClock();
       syncLyrics();
     });
+    // The end of one is the start of the next, and the end of the last is
+    // the start of the first. That is the whole of the rotation.
     a.addEventListener('ended', function () {
-      if (!mine()) return;
-      // A live stream has no end; reaching one means the connection went.
-      if (S.mode === 'radio') scheduleReconnect();
-      else next();
+      if (mine()) next();
     });
     a.addEventListener('playing', function () {
       if (!mine()) return;
@@ -505,7 +494,7 @@
       armed = null; // whatever was owed, it is playing now
       lastProgress = Date.now();
       S.playing = true;
-      setStatus(S.mode === 'radio' ? 'streaming live' : 'playing');
+      setStatus('playing');
       paintTransport();
     });
     a.addEventListener('pause', function () {
@@ -513,7 +502,7 @@
       // pause fires asynchronously, after stop() has already set its status.
       // Only a deliberate pause calls off a reconnect; a dropped stream also
       // pauses the element, and there intent is still 'play'.
-      if (intent === 'pause' || intent === 'stop') { cancelReconnect(); stopMeta(); armed = null; }
+      if (intent === 'pause' || intent === 'stop') { cancelReconnect(); armed = null; }
       S.playing = false;
       setStatus(intent === 'stop' ? 'stopped' : 'paused');
       paintTransport();
@@ -604,11 +593,9 @@
   }
 
   // The list the mode names, the list on screen, and the item playing out of
-  // the first of them. 'radio' names no list and no item.
+  // the first of them.
   function playingList() {
-    if (S.mode === 'track') return S.tracks;
-    if (S.mode === 'story') return S.eps;
-    return null;
+    return S.mode === 'story' ? S.eps : S.tracks;
   }
 
   function onScreenList() { return S.tab === 'stories' ? S.eps : S.tracks; }
@@ -620,8 +607,7 @@
 
   function wantedSrc() {
     var it = nowItem();
-    if (it) return it.url;
-    return HOST + '/' + STATIONS[S.st].slug + '/stream';
+    return it ? it.url : '';
   }
 
   function play(src, mode, ti) {
@@ -649,29 +635,35 @@
     paintAll();
   }
 
-  function playRadio(how) {
-    play(HOST + '/' + STATIONS[S.st].slug + '/stream', 'radio', -1);
-    syncRoute(how);
-    startMeta();
+  /* Joining the deck is the tune-in. There is no stream to fall back on, so
+     the playlist is what answers: from the top, in order, round again at the
+     end. Nothing about it was chosen, so it leaves the address alone — the
+     page the listener opened stays the page they are on, and a permalink
+     goes on meaning a song somebody picked. */
+  function autostart(how) {
+    if (!S.tracks.length) { setStatus('nothing in the playlist'); return; }
+    chose = false;
+    playFrom(S.tracks, 'track', 0, how);
   }
 
-  /* An item on demand carries its own title, so the live feed's metadata is
-     not needed while one plays. */
   function playFrom(list, mode, i, how) {
     var it = list[i];
     if (!it) return;
     play(it.url, mode, i);
     syncRoute(how);
-    stopMeta();
   }
 
+  // The two ways in that mean the listener named this one: a row, or a link.
+  // Stepping with the transport goes through playFrom() and leaves that be.
   function playTrack(i, how) {
+    chose = true;
     S.tab = 'songs';
     S.route = 'playlist';
     playFrom(S.tracks, 'track', i, how);
   }
 
   function playStory(i, how) {
+    chose = true;
     S.tab = 'stories';
     S.route = 'podcast';
     S.epOpen = true; // an episode just chosen shows what it is
@@ -682,23 +674,22 @@
     if (!audio.paused) { intent = 'pause'; cancelReconnect(); audio.pause(); return; }
     intent = 'play';
     var want = wantedSrc();
-    // Nothing loaded yet, or the station changed while stopped: connect fresh.
+    // Pressed play before anything has started, or after a stop: the
+    // playlist is what play means here.
+    if (!want) { autostart(); return; }
     if (loadedSrc !== want) { play(want, S.mode, S.ti); return; }
     if (ctx && ctx.state === 'suspended') ctx.resume();
     var p = audio.play();
     if (p && p.catch) p.catch(function () {});
-    if (S.mode === 'radio') startMeta();
   }
 
   function stop() {
     intent = 'stop';
     cancelReconnect();
-    stopMeta();
     // Pressing stop on an autoplay that never got permission still means no.
     armed = null;
-    S.icyTitle = '';
     audio.pause();
-    try { audio.currentTime = 0; } catch (e) { /* live stream */ }
+    try { audio.currentTime = 0; } catch (e) { /* nothing loaded */ }
     loadedSrc = '';
     S.playing = false;
     S.cur = 0;
@@ -706,7 +697,9 @@
     paintAll();
   }
 
-  // There is one station, so these only ever step whichever list is playing.
+  // These step whichever list is playing, and wrap: the last track runs into
+  // the first one. Transport rather than navigation, so they leave the
+  // history and — unless the listener had named a song — the address alone.
   function next() {
     var l = playingList();
     if (l && l.length) playFrom(l, S.mode, (S.ti + 1) % l.length);
@@ -727,9 +720,6 @@
 
   function arm(src, mode, ti) {
     armed = { src: src, mode: mode, ti: ti };
-    // playRadio() opened the metadata connection on the way in, and that is a
-    // full stream the server counts as a listener. Nobody is listening yet.
-    stopMeta();
     setStatus(window.matchMedia('(pointer: coarse)').matches
       ? 'tap anywhere to start'
       : 'click anywhere to start');
@@ -757,7 +747,6 @@
     armed = null;
     if (intent === 'pause' || intent === 'stop') return; // they already said no
     play(owed.src, owed.mode, owed.ti);
-    if (owed.mode === 'radio') startMeta();
   }
 
   function wireGestures() {
@@ -778,15 +767,16 @@
      copy of the list kept from the last visit, then the item baked into this
      very page by tools/build-routes.py, then — for a link the pages here do
      not know, which is how a brand new episode arrives — the lists as they
-     load, in listSettled(). The live stream has nothing to look up either
-     way, and is the answer when nothing else is. */
+     load, in listSettled(). A page that named nothing has nothing to look
+     up: the playlist starts itself, which is what every page here does when
+     it is not asked for something in particular. */
   function tuneIn() {
     var r = here();
-    if (!r.known || !r.kind) { playRadio('replace'); return; }
+    if (!r.known || !r.kind) { autostart('replace'); return; }
     S.route = r.kind;
 
-    // A list, rather than something in one: read it while the stream plays.
-    if (!r.slug) { setTab(LISTS[r.kind].tab); playRadio('replace'); return; }
+    // A list, rather than something in one: read it while the playlist runs.
+    if (!r.slug) { setTab(LISTS[r.kind].tab); autostart('replace'); return; }
 
     restoreList(r.kind);
     if (navigate(r, 'replace')) return;
@@ -838,72 +828,6 @@
     }
     if (S.tab === LISTS[raw.kind].tab) paintTracks();
     return true;
-  }
-
-  /* ── network ─────────────────────────────────────────── */
-
-  function stopMeta() {
-    if (metaAbort) { metaAbort.abort(); metaAbort = null; }
-  }
-
-  /* Reads the ICY title off the live stream. This is a full stream
-     connection whose audio is thrown away, so it runs only while the
-     listener is actually on the live stream. Left running from page load
-     it downloaded the station around the clock for every open tab, and
-     the server counted each one as a listener. */
-  function startMeta() {
-    if (metaAbort) metaAbort.abort();
-    if (S.mode !== 'radio') { metaAbort = null; return; }
-    var ac = new AbortController();
-    metaAbort = ac;
-    var url = HOST + '/' + STATIONS[S.st].slug + '/stream';
-
-    fetch(url, { headers: { 'Icy-MetaData': '1' }, signal: ac.signal }).then(function (r) {
-      var g = function (k) { return r.headers.get(k); };
-      S.icyName = g('icy-name') || '';
-      S.icyGenre = g('icy-genre') || '';
-      paintLcd();
-
-      var metaint = parseInt(g('icy-metaint') || '0', 10);
-      if (!metaint || !r.body) return;
-
-      var reader = r.body.getReader();
-      var dec = new TextDecoder('utf-8');
-      var skip = metaint, want = 0, len = -1, meta = [];
-
-      function pump() {
-        return reader.read().then(function (res) {
-          if (res.done || ac.signal.aborted) return;
-          var value = res.value;
-          var i = 0;
-          while (i < value.length) {
-            if (skip > 0) {
-              var take = Math.min(skip, value.length - i);
-              skip -= take; i += take;
-              continue;
-            }
-            if (len < 0) {
-              len = value[i++] * 16;
-              want = len;
-              meta = [];
-              if (len === 0) { skip = metaint; len = -1; }
-              continue;
-            }
-            var t2 = Math.min(want, value.length - i);
-            for (var k = 0; k < t2; k++) meta.push(value[i + k]);
-            i += t2; want -= t2;
-            if (want === 0) {
-              var s = dec.decode(new Uint8Array(meta));
-              var m = s.match(/StreamTitle='([^']*)'/);
-              if (m && m[1] !== S.icyTitle) { S.icyTitle = m[1]; paintLcd(); }
-              skip = metaint; len = -1;
-            }
-          }
-          return pump();
-        });
-      }
-      return pump();
-    }).catch(function () { /* metadata is best-effort */ });
   }
 
   /* ── stories ─────────────────────────────────────────
@@ -1087,16 +1011,6 @@
 
   function epNumber(i) { return S.eps.length - i; }
 
-  function loadStats() {
-    fetch(HOST + '/statistics').then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.stations) {
-        S.stats = j;
-        paintStats();
-        paintHeader();
-      }
-    }).catch(function () { /* stats optional */ });
-  }
-
   function applyManifest(j) {
     S.tracks = ((j && j.tracks) || []).map(resolveTrack);
     assignSlugs(S.tracks, 'playlist');
@@ -1113,19 +1027,19 @@
 
   /* A link that names a song or an episode has to wait for the list it is in,
      and the two lists arrive separately. Whichever one answers gets its
-     chance at the link; the live stream is the fallback only once neither of
-     them turned out to have it. */
+     chance at the link; the playlist from the top is the fallback only once
+     neither of them turned out to have it. */
   function listSettled() {
     loadsLeft--;
     if (!linkPending) return;
     if (navigate(here(), 'replace')) { linkPending = false; return; }
     if (loadsLeft <= 0) {
       // Neither list had it: a renamed track, a typo, or an episode the show
-      // published since the copy of the feed here was mirrored. The stream is
-      // never the wrong answer, and the address stops claiming otherwise.
+      // published since the copy of the feed here was mirrored. The playlist
+      // is never the wrong answer, and the address stops claiming otherwise.
       linkPending = false;
       S.route = '';
-      playRadio('replace');
+      autostart('replace');
     }
   }
 
@@ -1148,11 +1062,15 @@
       listSettled();
       if (waiting) return;
 
+      // Nor is an empty deck. Without a kept copy there was nothing to play
+      // until this landed, and this is the moment the rotation can start.
+      if (!nowItem()) { autostart('replace'); return; }
+
       // The kept copy picked the track; the real playlist gets the last word
       // on where it sits, and on whether it is still there at all.
       if (open) {
         var i = indexOfKey(S.tracks, open);
-        if (i < 0) { playRadio('replace'); return; }
+        if (i < 0) { autostart('replace'); return; }
         if (i !== S.ti) { S.ti = i; paintAll(); }
       }
     }).catch(function () {
@@ -1187,78 +1105,58 @@
     el.status.textContent = s;
   }
 
-  function paintHeader() {
-    var ss = S.stats && S.stats.stations ? S.stats.stations[STATIONS[S.st].slug] : null;
-    var netActive = S.stats && S.stats.stations
-      ? Object.keys(S.stats.stations).reduce(function (a, k) {
-          return a + (S.stats.stations[k].active_listeners || 0);
-        }, 0)
-      : null;
-    el.netActive.textContent = ss ? ss.active_listeners : (netActive == null ? '—' : netActive);
-    el.netSessions.textContent = ss ? num(ss.total_sessions) : '—';
-    el.netHours.textContent = ss ? num(ss.total_listen_hours) : '—';
-  }
-
   function showName() { return (S.show && S.show.name) || 'Omarchy Stories'; }
   function showLink() { return (S.show && S.show.link) || STORIES_HOME; }
 
   function paintLcd() {
-    var cur = STATIONS[S.st];
     var it = nowItem();
     var story = S.mode === 'story' ? it : null;
     var t = S.mode === 'track' ? it : null;
-    var live = S.mode === 'radio';
 
     el.stationLabel.textContent = story
       ? showName().toLowerCase() + ' · ' + STORIES_TAG
-      : cur.name.toLowerCase() + ' · ' + cur.tag;
-    el.srcLabel.textContent = live
-      ? '◉ live stream'
-      : story
-        ? 'podcast · episode ' + epNumber(S.ti)
-        : 'playlist · track ' + (S.ti + 1);
-
-    // Filled while the live stream is the source, dot blinking only when
-    // it is actually playing rather than merely selected.
-    el.backToRadio.classList.toggle('is-live', live);
-    el.backToRadio.classList.toggle('is-onair', live && S.playing);
+      : STATION.name.toLowerCase() + ' · ' + STATION.tag;
+    el.srcLabel.textContent = story
+      ? 'podcast · episode ' + epNumber(S.ti)
+      : t
+        ? 'playlist · track ' + (S.ti + 1) + ' of ' + S.tracks.length
+        : 'playlist';
 
     var marquee = it
       ? (it.title + '  —  ' + it.artist)
-      : (S.icyTitle ? S.icyTitle : (S.icyName || cur.name) + '  —  ' + cur.tag);
+      : (STATION.name + '  —  ' + STATION.tag);
     Array.prototype.forEach.call(el.marq.children, function (n) { n.textContent = marquee; });
 
-    setMediaMeta(
-      it ? it.title : (S.icyTitle || S.icyName || cur.name),
-      it ? it.artist : (S.icyTitle ? (S.icyName || cur.name) : cur.tag)
-    );
+    setMediaMeta(it ? it.title : STATION.name, it ? it.artist : STATION.tag);
 
     el.artist.textContent = story
       ? [showName(), dateLabel(story.ms), lengthLabel(story.secs)]
           .filter(Boolean).join(' · ')
       : t
         ? (t.album || t.artist)
-        : [S.icyName || cur.name, S.icyGenre, S.icyTitle ? 'on air now' : 'continuous rotation']
-            .filter(Boolean).join(' · ');
+        : STATION.tag;
 
     /* The tab names the address, the way the title the page was served with
        does — a song's page still reads as the song while it is paused, which
-       is how a listener finds it again among twenty tabs. The live stream has
-       no page of its own, so there it names whatever is on air. */
-    document.title = story
+       is how a listener finds it again among twenty tabs.
+
+       Only when they named it, though, for the same reason the address only
+       follows then: the playlist plays on the front page too, and a front
+       page whose title is a song nobody asked for is what a crawler would
+       index it under. */
+    document.title = chose && story
       ? story.title + ' · ' + showName()
-      : t
+      : chose && t
         ? t.title + ' by ' + t.artist + ' · Omarchy Radio'
-        : (S.playing ? marquee.replace(/\s+/g, ' ').trim() + ' · ' : '') + 'Omarchy Radio';
+        : 'Omarchy Radio';
 
     paintClock();
   }
 
   function paintClock() {
-    var live = S.mode === 'radio';
-    el.curTime.textContent = live && S.playing ? '∞' : fmt(S.cur);
-    el.durTime.textContent = live ? 'live' : fmt(S.dur);
-    var pct = (live || !S.dur) ? 0 : Math.min(100, (S.cur / S.dur) * 100);
+    el.curTime.textContent = fmt(S.cur);
+    el.durTime.textContent = fmt(S.dur);
+    var pct = !S.dur ? 0 : Math.min(100, (S.cur / S.dur) * 100);
     el.seekFill.style.width = pct.toFixed(2) + '%';
     el.seekHead.style.left = pct.toFixed(2) + '%';
     el.seek.setAttribute('aria-valuenow', Math.round(pct));
@@ -1275,44 +1173,12 @@
 
     // 0..1 position for the phone layout, where the dial is a bar.
     el.volKnob.style.setProperty('--v', S.vol.toFixed(4));
-
-    // Nothing to scrub on a live stream.
-    el.seek.classList.toggle('is-live', S.mode === 'radio');
-  }
-
-  function paintStats() {
-    var ss = S.stats && S.stats.stations ? S.stats.stations[STATIONS[S.st].slug] : null;
-    el.tileActive.textContent = ss ? ss.active_listeners : '—';
-    el.tilePeak.textContent = ss ? ss.peak_listeners : '—';
-    el.tileSessions.textContent = ss ? num(ss.total_sessions) : '—';
-    el.tileHours.textContent = ss ? num(ss.total_listen_hours) : '—';
-    el.peak.textContent = ss ? ss.peak_listeners : '—';
-    paintGeo(ss);
-  }
-
-  function paintGeo(ss) {
-    var top = ((ss && ss.top_countries) || []).slice(0, 6);
-    var max = top.reduce(function (a, g) { return Math.max(a, g.sessions || 0); }, 0) || 1;
-    el.geoList.innerHTML = '';
-    var frag = document.createDocumentFragment();
-    top.forEach(function (g) {
-      var li = document.createElement('li');
-      li.className = 'geo-row';
-      li.innerHTML =
-        '<div class="geo-top"><span class="geo-name"></span><span class="geo-val"></span></div>' +
-        '<div class="geo-bar"><span></span></div>';
-      li.querySelector('.geo-name').textContent = g.country + ' · ' + g.country_code;
-      li.querySelector('.geo-val').textContent = num(g.sessions);
-      li.querySelector('.geo-bar span').style.width = ((g.sessions / max) * 100).toFixed(1) + '%';
-      frag.appendChild(li);
-    });
-    el.geoList.appendChild(frag);
   }
 
   /* ── routing ────────────────────────────────────
      The address is the state. Two lists, each with a path of its own:
 
-       /                      the live stream
+       /                      the deck, playing the playlist
        /playlist              the songs
        /playlist/<song>       that song, playing
        /podcast               the episodes
@@ -1428,13 +1294,20 @@
 
   function here() { return parseRoute(location.pathname, location.hash); }
 
-  /* The path for what the deck is showing: the item playing, if the panel is
-     showing the list it came out of, and otherwise the list being read. Home
-     is the live stream, which is where a visit that named nothing starts. */
+  /* The path for what the deck is showing: the item the listener named, if
+     the panel is showing the list it came out of, and otherwise the list
+     being read.
+
+     A song the deck started by itself does not count. The playlist plays on
+     every page, so if it did, /, /playlist and /podcast would each turn into
+     a song's address a second after opening — three pages of this site that
+     could never be linked to, and three canonical links pointing at a song
+     nobody asked for. Press a row or follow a link and the address is
+     yours; until then it stays the page it is. */
   function wantedPath() {
     var it = nowItem();
     var showing = S.tab === 'stories' ? 'podcast' : 'playlist';
-    if (it && it.kind === showing) return '/' + it.key;
+    if (chose && it && it.kind === showing) return '/' + it.key;
     return S.route ? '/' + S.route : '/';
   }
 
@@ -1470,10 +1343,15 @@
     if (!r.known) return false;
 
     if (!r.kind) {
-      // Home is the front of the deck: the live stream, and the songs.
+      // Home is the front of the deck: the songs, from the top. Whatever is
+      // already playing keeps playing — going back to the front is not a
+      // reason to lose your place in a song.
       S.route = '';
-      setTab('songs');
-      playRadio(how); // which repaints, the tabs and the list with it
+      chose = false;
+      var moved = setTab('songs');
+      if (!nowItem()) { autostart(how); return true; }
+      if (moved) paintAll();
+      syncRoute(how);
       return true;
     }
 
@@ -1553,7 +1431,7 @@
     el.playlistKind.textContent = stories ? 'episodes' : 'playlist';
     el.playlistName.textContent = stories
       ? showName().toLowerCase()
-      : STATIONS[S.st].name.toLowerCase();
+      : STATION.name.toLowerCase();
     el.tracks.setAttribute('aria-label', stories ? 'Episodes' : 'Playlist');
   }
 
@@ -1589,6 +1467,7 @@
     list.forEach(function (tr, i) {
       var on = i === S.ti && S.mode === (stories ? 'story' : 'track');
       var li = document.createElement('li');
+      if (on) li.className = 'is-on';
       /* A row is a link to the item it names: it can be opened in a tab of
          its own, copied out of the context menu, and read by anything that
          reads links. The press itself is still handled here, so following
@@ -1727,8 +1606,8 @@
   function paintTrackNote() {
     if (S.tab === 'stories') { paintStoryNote(); return; }
     el.playlistNote.textContent = S.tracks.length
-      ? S.tracks.length + ' tracks on demand'
-      : 'live rotation only — no track list on this stream';
+      ? S.tracks.length + ' tracks, on repeat'
+      : 'nothing in the playlist yet';
   }
 
   /* The show is not ours, so the note says whose it is and where it lives —
@@ -1753,8 +1632,8 @@
      A sheet arrives the way a track does: a file in the repo named after
      the MP3, landing in the same pull request. Timestamps are optional. A
      sheet that has them follows the audio line by line; a sheet without is
-     just a sheet, which is all most people will want to write. The live
-     stream has neither, so the button is only there for a track. */
+     just a sheet, which is all most people will want to write. An episode
+     has neither, so the button is only there for a song. */
 
   function lyricsUrl(t) {
     if (!t || t.lyrics === false) return '';
@@ -1917,7 +1796,8 @@
       ? S.tracks[S.ti]
       : null;
 
-    // Nothing to show for the live stream, and nothing to offer either.
+    // An episode carries its notes in the list itself, so there is nothing
+    // to show here and nothing to offer.
     if (!t) {
       S.lyricsOpen = false;
       el.lyricsBtn.hidden = true;
@@ -1958,11 +1838,9 @@
   }
 
   function paintAll() {
-    paintHeader();
     paintTabs();
     paintLcd();
     paintTransport();
-    paintStats();
     paintTracks();
     paintLyrics();
   }
@@ -2089,15 +1967,13 @@
 
   function boot() {
     [
-      'bg', 'fit', 'app', 'netActive', 'netSessions', 'netHours', 'themeBtn', 'themeMenu',
+      'bg', 'fit', 'app', 'themeBtn', 'themeMenu',
       'themeCaret', 'skinName', 'stationLabel', 'srcLabel',
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
-      'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
       'playlistKind', 'playlistName', 'tracks', 'trHead', 'playlistNote',
-      'geoList', 'peak', 'status', 'seg', 'tabSongs', 'tabPodcast',
-      'lyricsBtn', 'lyricsBox', 'lyrics',
-      'backToRadio', 'installBtn'
+      'status', 'seg', 'tabSongs', 'tabPodcast',
+      'lyricsBtn', 'lyricsBox', 'lyrics', 'installBtn'
     ].forEach(function (id) { el[id] = $(id); });
 
     buildThemeMenu();
@@ -2165,8 +2041,6 @@
     tuneIn();
     loadTracks();
     if (SHOW_PODCAST) loadStories();
-    loadStats();
-    setInterval(loadStats, STATS_INTERVAL);
     setInterval(watchdog, 5000);
 
     window.addEventListener('online', function () {
@@ -2182,13 +2056,15 @@
     wireInstall();
 
     /* The back and forward buttons, and any address typed over the one in
-       the bar. A route that names nothing here is not a reason to go quiet,
-       so the stream answers and the address says so. */
+       the bar. A route that names nothing here is not a reason to go quiet:
+       the playlist answers, and the address stops claiming otherwise. */
     window.addEventListener('popstate', function () {
       var r = here();
       if (navigate(r, 'replace')) return;
       S.route = r.known ? r.kind : '';
-      playRadio('replace');
+      chose = false;
+      if (!nowItem()) autostart('replace');
+      else syncRoute('replace');
     });
 
     /* A link from before the paths existed, followed in this tab: the

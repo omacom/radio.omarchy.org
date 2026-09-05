@@ -136,6 +136,11 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .bar-l { display: flex; align-items: center; gap: 12px; }
 
+/* The mark and the wordmark are one link to the front. */
+.mark { display: flex; align-items: center; gap: 12px; color: inherit; }
+.mark:hover { color: inherit; }
+.mark:hover .logo { color: var(--acHi); }
+
 /* Omarchy mark, traced from the omarchy.org favicon. It is a monochrome
    glyph, so it takes the theme accent like the square it replaced. */
 .logo {
@@ -165,14 +170,14 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .bar-r { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 
-.live-now {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Where the listener count used to be. Those numbers counted a stream that
+   no longer exists; this says what the deck is instead. */
+.tagline {
   font-size: 10px;
   letter-spacing: .24em;
   text-transform: uppercase;
-  color: var(--ac);
+  color: var(--c2);
+  white-space: nowrap;
 }
 
 .pulse {
@@ -181,14 +186,6 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   flex: none;
   background: var(--ac);
   animation: blink 1.4s steps(1) infinite;
-}
-
-.net-sum {
-  font-size: 10px;
-  letter-spacing: .24em;
-  text-transform: uppercase;
-  color: var(--c2);
-  white-space: nowrap;
 }
 
 /* theme picker */
@@ -475,45 +472,16 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 /* These four numbers count the live stream, and they sat directly above a
    list of songs and a list of episodes that they say nothing about. The
    heading is the whole fix: the numbers were never wrong, only unlabelled. */
-.stats { border-top: 1px solid var(--bd); }
-
-.stats-title { padding: 14px 20px 0; }
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.tile { padding: 14px 20px; border-left: 1px solid var(--bdF); }
-.tile:first-child { border-left: 0; }
-
-.tile-v {
-  font-family: var(--lcdfont);
-  font-size: 34px;
-  line-height: 1;
-  color: var(--ac);
-}
-
-.tile-l {
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--c2);
-  margin-top: 7px;
-}
-
 /* ── lower row ───────────────────────────────────────── */
 
 .row-bot {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
 
 .playlist {
-  border-right: 1px solid var(--bd);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -521,10 +489,8 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .playlist .panel-head { padding: 16px 20px 10px; flex-wrap: wrap; }
 
-/* The one control that says this is a radio. It used to be a 10px text
-   link sitting where a caption goes, so it read as a label rather than
-   something you press. Outlined means the live stream is there to tune
-   into; filled with the dot blinking means it is what you are hearing. */
+/* Outlined, and sitting where a caption goes, so it reads as something you
+   press rather than a label. Filled means it is on. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -545,7 +511,6 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .back.is-live { background: var(--ac); color: var(--acFg); }
 .back.is-live .pulse { background: var(--acFg); }
-.back.is-onair .pulse { animation: blink 1.4s steps(1) infinite; }
 
 .tr-head, .track {
   display: grid;
@@ -573,7 +538,13 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   overflow-y: auto;
 }
 
+/* A row is two links side by side — the track, and the # that copies its
+   address — so the state belongs to the pair. Put it on either one alone and
+   the highlight stops short of the other, which the full-width panel shows
+   up for what it is. */
 .tracks li { display: flex; align-items: stretch; }
+.tracks li:hover { background: var(--rowHov); }
+.tracks li.is-on { background: var(--rowOn); }
 
 .tr-link {
   flex: 0 0 44px;
@@ -585,7 +556,7 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--c3);
   border-bottom: 1px solid var(--bdF);
 }
-.tr-link:hover { color: var(--ac); background: var(--rowHov); }
+.tr-link:hover { color: var(--ac); }
 
 .track {
   align-items: center;
@@ -594,8 +565,7 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   padding: 12px 20px;
   border-bottom: 1px solid var(--bdF);
 }
-.track:hover { background: var(--rowHov); }
-.track.is-on { background: var(--rowOn); }
+.track:hover, .track.is-on { background: transparent; }
 
 .tr-n { font-family: var(--lcdfont); font-size: 19px; line-height: 1; color: var(--c2); }
 .track.is-on .tr-n { color: var(--ac); }
@@ -800,42 +770,6 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .panel-note a { color: var(--ac); }
 .panel-note a:hover { color: var(--fg); }
 
-.geo { display: flex; flex-direction: column; min-height: 0; }
-
-.geo-title { padding: 16px 20px 10px; flex: none; }
-
-.geo-list {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid var(--bd);
-}
-
-.geo-row { padding: 11px 20px; border-bottom: 1px solid var(--bdF); }
-
-.geo-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.geo-name {
-  font-size: 11px;
-  letter-spacing: .06em;
-  color: var(--fg);
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.geo-val { font-family: var(--lcdfont); font-size: 17px; line-height: 1; color: var(--ac); }
-
-.geo-bar { height: 3px; margin-top: 8px; background: var(--trk); }
-.geo-bar span { display: block; height: 3px; background: var(--ac); }
 
 /* ── footer ──────────────────────────────────────────── */
 
@@ -894,10 +828,10 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 /* The small uppercase labels run 8-11px with wide tracking in dimmed colours;
    a heavier weight keeps them legible. JetBrains Mono ships 400/500/700 here,
    so 500 is a real weight rather than a synthesised one. */
-.wordmark, .home, .live-now, .net-sum, .picker-btn, .menu button,
+.wordmark, .home, .tagline, .picker-btn, .menu button,
 .panel-title, .panel-meta, .lcd-top, .artist,
-.tile-l, .tr-head, .tr-s, .tr-artist, .tr-ex, .knob-lbl, .back,
-.panel-note, .geo-name, .foot, .status {
+.tr-head, .tr-s, .tr-artist, .tr-ex, .knob-lbl, .back,
+.panel-note, .foot, .status {
   font-weight: var(--wt-small);
 }
 
@@ -935,13 +869,9 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .lcd       { order: 1; }
   .transport { order: 2; }
   .playlist  { order: 3; }
-  .stats     { order: 4; }
-  .geo       { order: 5; }
-  .foot      { order: 6; }
-  .playlist, .geo { border-right: 0; border-top: 1px solid var(--bd); }
-
-  .playlist { border-right: 0; }
-  .tracks, .geo-list { max-height: 340px; }
+  .foot      { order: 4; }
+  .playlist { border-right: 0; border-top: 1px solid var(--bd); }
+  .tracks { max-height: 340px; }
 
   .bar { gap: 14px; }
   .bar-r { gap: 14px; width: 100%; }
@@ -970,7 +900,6 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .tb-play { flex: 1.6; }
 
   .seek { height: 44px; }
-  .seek.is-live { display: none; }
 
   /* A dial is the wrong shape for a thumb, and at this size both read as
      empty boxes. They become bars. knobDrag already answers to sideways
@@ -1013,21 +942,17 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .marq-clip { margin: 8px 0 12px; }
   .vis { height: 72px; }
 
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tile:nth-child(3) { border-left: 0; }
-  .tile:nth-child(n+3) { border-top: 1px solid var(--bdF); }
 }
 
 @media (max-width: 480px) {
   /* Flattening .bar-r lets the picker share the wordmark's row instead of
      claiming one of its own on a screen with no rows to spare. */
   .bar-r { display: contents; }
-  .live-now { order: 1; margin-left: auto; }
+  .tagline { order: 1; margin-left: auto; }
 
   .marq-txt { font-size: 34px; }
   .wordmark { letter-spacing: .2em; }
   .home { display: none; }
-  .net-sum { display: none; }
   .picker-btn { min-width: 140px; }
 }
 

@@ -1,6 +1,8 @@
 # Omarchy Radio
 
-The site behind [radio.omarchy.org](https://radio.omarchy.org). A live stream, and an on-demand playlist that lives in this repo. Every song in the playlist arrived as a pull request.
+The site behind [radio.omarchy.org](https://radio.omarchy.org). A playlist that lives in this repo and plays itself: open the page and it starts at the top, works its way down, and goes round again. Every song in it arrived as a pull request.
+
+There is no live stream any more, and no listener counter. What is here is the songs, the show, and a link to each one.
 
 ## Submissions
 

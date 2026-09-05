@@ -45,7 +45,7 @@ episode does. Nothing under `podcast/` is written by hand either.
 An episode published since the last mirror has no page yet. The link still
 works: the host serves `404.html`, which is the deck, and the deck reads the
 address and looks for the episode in the feed. It appears once the mirror has
-run, and until then that link falls back to the live stream.
+run, and until then that link falls back to the playlist.
 
 ## If the show moves
 

@@ -24,6 +24,10 @@ on:
       - 'tracks/playlist.json'
       - 'index.html'
       - 'tools/build-routes.py'
+      # The pages name the deck and its stylesheets by a stamp of their
+      # contents, so a change to either is a change to all of them.
+      - 'assets/js/app.js'
+      - 'assets/css/*.css'
   workflow_dispatch:
 
 concurrency:

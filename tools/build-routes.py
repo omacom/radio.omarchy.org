@@ -52,6 +52,7 @@ Standard library only.
 """
 
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -73,13 +74,16 @@ SHOW = 'Omarchy Stories'
 SHOW_HOME = 'https://omarchystories.org'
 ITUNES = '{http://www.itunes.com/dtds/podcast-1.0.dtd}'
 
-SITE_DESC = ('A live stream and an on-demand playlist for the Omarchy desktop. '
-             'Every song in it arrived as a pull request.')
+SITE_DESC = ('The community playlist for the Omarchy desktop. Songs about Arch, '
+             'Hyprland and dotfiles, every one of them sent in as a pull request.')
 
 MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
           'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 MARKERS = ('head', 'data', 'panel', 'tabs', 'list', 'note')
+
+# The files a page has to agree with, stamped in the URL that names them.
+STAMPED = ('assets/js/app.js', 'assets/css/style.css', 'assets/css/fonts.css')
 
 # The two lists, and the paths they own.
 KINDS = ('playlist', 'podcast')
@@ -289,12 +293,35 @@ def plural(n, word):
 def read_template():
     with open(os.path.join(ROOT, TEMPLATE), encoding='utf-8') as f:
         s = f.read()
+    s = stamp(s)
     for name in MARKERS:
         if s.count('<!-- page:%s -->' % name) != 1 or s.count('<!-- /page:%s -->' % name) != 1:
             sys.exit('%s: the page:%s markers are missing. Every page is written '
                      'from this file, so it needs one pair of each: %s'
                      % (TEMPLATE, name, ', '.join(MARKERS)))
     return s
+
+
+def stamp(template):
+    """Names the deck and its stylesheets by what is in them.
+
+    A page and the deck it loads have to be the same version of the two. The
+    page is fetched from the network on every visit; the deck comes out of the
+    service worker's cache, and a deck cached before a deploy is one looking
+    for elements the new page no longer has — which is a deck that does not
+    start at all. Putting a stamp of the contents in the URL means neither the
+    browser nor the worker can serve one against the other: change the file
+    and it is a different address.
+
+    Idempotent, so the stamp already in the template is replaced rather than
+    added to.
+    """
+    for rel in STAMPED:
+        with open(os.path.join(ROOT, rel), 'rb') as f:
+            mark = hashlib.sha256(f.read()).hexdigest()[:10]
+        pattern = r'(/%s)(\?[0-9a-f]{1,32})?' % re.escape(rel)
+        template = re.sub(pattern, r'\1?' + mark, template)
+    return template
 
 
 def fill(template, blocks):
@@ -377,7 +404,7 @@ def row(item, number, artist_line, on):
     path = '/' + item['key']
     ex = '<span class="tr-ex"%s>explicit</span>' % ('' if item.get('explicit') else ' hidden')
     return (
-        '<li>'
+        '<li%s>'
         '<a class="track%s" href="%s">'
         '<span class="tr-n">%02d</span>'
         '<span class="tr-t">'
@@ -389,7 +416,8 @@ def row(item, number, artist_line, on):
         '<a class="tr-link" href="%s" title="Permalink &#8212; press to copy" '
         'aria-label="Copy link to %s">#</a>'
         '</li>'
-    ) % (' is-on' if on else '', esc(path), number, esc(item['title']), ex,
+    ) % (' class="is-on"' if on else '', ' is-on' if on else '',
+         esc(path), number, esc(item['title']), ex,
          esc(artist_line), esc(path), esc(item['title']))
 
 
@@ -416,8 +444,8 @@ def episode_rows(eps, only=None):
 
 def song_note(tracks, item=None):
     if not tracks:
-        return 'live rotation only &#8212; no track list on this stream'
-    count = plural(len(tracks), 'track') + ' on demand'
+        return 'nothing in the playlist yet'
+    count = plural(len(tracks), 'track') + ', on repeat'
     if item is None:
         return count
     if len(tracks) == 1:

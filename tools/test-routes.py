@@ -16,9 +16,9 @@ is silent:
      build-routes.py --check answers that.
 
   3. An address that ought to serve a page does not. Every route is asked for
-     over HTTP, through a server that resolves paths the way GitHub Pages
-     does, and the answer has to be the right page: its own title, its own
-     canonical link, its own item baked into it.
+     over HTTP, through a server that resolves paths — and answers byte
+     ranges — the way GitHub Pages does, and the answer has to be the right
+     page: its own title, its own canonical link, its own item baked into it.
 
   4. A link in a page points at an address that is not served. Every internal
      href in every generated page is followed.
@@ -28,6 +28,7 @@ library, plus node for the slug comparison (skipped, loudly, without it).
 """
 
 import http.server
+import io
 import json
 import os
 import re
@@ -89,8 +90,56 @@ class Pages(http.server.SimpleHTTPRequestHandler):
             body = open(served, 'rb').read()
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
-            return __import__('io').BytesIO(body)
-        return super().send_head()
+            return io.BytesIO(body)
+        part = self.ranged(served)
+        return part if part is not None else super().send_head()
+
+    def ranged(self, served):
+        """A byte range, the way the host answers one.
+
+        A browser seeking in a track asks for the middle of a file, and a
+        media element only ever buffers a little way ahead — so a server that
+        answers the whole file to every request is a server the deck cannot
+        seek on. GitHub Pages does support ranges; without this, the one thing
+        that differs is the thing under test.
+        """
+        head = (self.headers.get('Range') or '').strip()
+        if not head or not os.path.isfile(served):
+            return None
+        m = re.match(r'^bytes=(\d*)-(\d*)$', head)
+        if not m or not (m.group(1) or m.group(2)):
+            return None
+
+        size = os.path.getsize(served)
+        if m.group(1):
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else size - 1
+        else:
+            start = size - int(m.group(2))  # the last N bytes
+            end = size - 1
+        start, end = max(0, start), min(end, size - 1)
+
+        if start > end or start >= size:
+            self.send_response(416)
+            self.send_header('Content-Range', 'bytes */%d' % size)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return io.BytesIO(b'')
+
+        with open(served, 'rb') as f:
+            f.seek(start)
+            body = f.read(end - start + 1)
+        self.send_response(206)
+        self.send_header('Content-Type', self.guess_type(served))
+        self.send_header('Content-Range', 'bytes %d-%d/%d' % (start, end, size))
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        return io.BytesIO(body)
+
+    def end_headers(self):
+        # So a browser knows it may ask for the middle of a file at all.
+        self.send_header('Accept-Ranges', 'bytes')
+        super().end_headers()
 
     def log_message(self, *args):
         pass

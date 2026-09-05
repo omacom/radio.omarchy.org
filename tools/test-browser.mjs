@@ -22,7 +22,10 @@
      - back and forward walk the songs that were pressed
      - the tabs are links, and /playlist and /podcast are pages
      - the links from before the paths still work, and rewrite themselves
-     - a slug that names nothing falls back to the live stream
+     - a page that names nothing plays the playlist, from the top, without
+       taking the address over
+     - a slug that names nothing falls back to the playlist
+     - the last track runs into the first one
 */
 
 import { spawn } from 'node:child_process';
@@ -236,7 +239,7 @@ class Tab {
 
   async go(path) {
     await this.send('Page.navigate', { url: BASE + path });
-    // The deck boots on DOMContentLoaded; the fonts and the stream can take
+    // The deck boots on DOMContentLoaded; the fonts and the audio can take
     // their time, so this waits for the deck rather than for the load event.
     await until(`${path} to boot`, () => this.eval('!!(window.__state && document.getElementById("status"))'));
     await this.eval('window.__sentinel = 1');
@@ -329,7 +332,7 @@ async function autoplayAllowed({ songs, eps }) {
     if (s) {
       is(s.path, song, 'the address stays put');
       is(s.plays.length, 1, 'one play call, for the one song asked for');
-      ok(s.src.endsWith('.mp3'), `the source is a track, not the stream: ${s.src}`);
+      ok(s.src.endsWith('.mp3'), `the source is a track: ${s.src}`);
       ok(decodeURIComponent(s.src).includes(wanted.file), `it is the right file: ${decodeURIComponent(s.src)}`);
       ok(s.at > 0, `the audio is actually moving (${s.at.toFixed(2)}s in)`);
       is(s.refused.length, 0, 'nothing was refused');
@@ -401,6 +404,57 @@ async function autoplayAllowed({ songs, eps }) {
       is(s.sentinel, 1, 'still no reload');
     }
 
+    // ── the front page plays the playlist without taking the address ──
+    await tab.go('/');
+    s = await until('the playlist to start by itself', async () => {
+      const st = await tab.state();
+      return st.playing && st.at > 0 ? st : null;
+    });
+    if (s) {
+      is(s.path, '/', 'the front page stays the front page');
+      is(s.canonical, 'https://radio.omarchy.org/', 'and goes on saying so');
+      ok(decodeURIComponent(s.src).includes(songs[0].file),
+         'the playlist starts itself, from the top');
+      is(s.row, songs[0].title, 'and the row it is on is lit');
+      is(s.title, 'Omarchy Radio', 'the tab stays the front page, not a song nobody picked');
+      ok(!/live|stream/i.test(s.status), `nothing about a stream: "${s.status.trim()}"`);
+    }
+
+    // ── the end of the last one is the start of the first ──
+    const last = songs[songs.length - 1];
+    await tab.go(last.path);
+    await until('the last song', async () => (await tab.state()).playing);
+
+    // Pressing next on the last one is the wrap on its own terms.
+    await tab.click('#next');
+    s = await until('the first song, from the transport', async () => {
+      const st = await tab.state();
+      return st.row === songs[0].title ? st : null;
+    });
+    if (s) is(s.row, songs[0].title, 'next on the last track wraps to the first');
+
+    // And so is running off the end of it, which is what a rotation is.
+    // The server answers byte ranges, so the needle can just be dropped.
+    await tab.go(last.path);
+    await until('the last song again', async () => (await tab.state()).playing);
+    const seeked = await until('the last song to be seekable', () => tab.eval(`(function () {
+      var live = window.__probe.media.filter(function (m) { return !m.paused; })[0];
+      if (!live || !isFinite(live.duration) || !live.duration) return false;
+      live.currentTime = live.duration - 0.3;
+      return true;
+    })()`), 15000, 200);
+    if (ok(seeked, 'the last track can be run to its end')) {
+      s = await until('the first song to come round', async () => {
+        const st = await tab.state();
+        return st.row === songs[0].title ? st : null;
+      }, 15000);
+      if (s) {
+        is(s.row, songs[0].title, 'the end of the last track is the start of the first');
+        ok(decodeURIComponent(s.src).includes(songs[0].file), 'and it is that file playing');
+        is(s.path, songs[0].path, 'the address follows, this one having been named');
+      }
+    }
+
     // ── an episode's own page loads that episode ──
     if (eps.length) {
       await tab.go(eps[0].path);
@@ -410,8 +464,9 @@ async function autoplayAllowed({ songs, eps }) {
       });
       if (s) {
         is(s.path, eps[0].path, 'the address stays put');
-        ok(/^https?:/.test(s.plays[0]) && !s.plays[0].includes('/stream'),
-           `the audio asked for is the show's, not the stream: ${s.plays[0].slice(0, 60)}…`);
+        const asked = s.plays[s.plays.length - 1];
+        ok(/^https?:/.test(asked) && !/\/tracks\//.test(asked),
+           `the audio asked for is the show's host, not a track: ${asked.slice(0, 60)}…`);
         is(s.tab, 'tabPodcast', 'the podcast tab is the current one');
         ok(s.row.length > 0, `the episode row is lit: ${s.row}`);
       }
@@ -465,13 +520,14 @@ async function autoplayAllowed({ songs, eps }) {
 
     // ── a slug that names nothing ──
     await tab.go('/playlist/no-such-song-at-all');
-    s = await until('the fallback to the stream', async () => {
+    s = await until('the fallback to the playlist', async () => {
       const st = await tab.state();
-      return st.path === '/' && st.plays.length ? st : null;
+      return st.path === '/' && st.playing ? st : null;
     });
     if (s) {
-      is(s.path, '/', 'a slug that names nothing lands on the station');
-      ok(s.plays[s.plays.length - 1].includes('/stream'), 'and the live stream is what plays');
+      is(s.path, '/', 'a slug that names nothing lands on the front');
+      ok(decodeURIComponent(s.src).includes(songs[0].file),
+         'and the playlist starts from the top');
     }
 
     // ── the transport does not build a history to climb out of ──
@@ -511,7 +567,8 @@ async function autoplayAllowed({ songs, eps }) {
       if (s) {
         is(s.path, path, `${path} stays as it was opened`);
         is(s.tab, tabId, `${path} opens on the right list`);
-        ok(s.plays[0].includes('/stream'), `${path} plays the live stream while you read it`);
+        ok(decodeURIComponent(s.plays[0]).includes(songs[0].file),
+           `${path} plays the playlist from the top while you read it`);
         is(s.canonical, 'https://radio.omarchy.org' + path, `${path} says what it is`);
       }
     }
@@ -542,15 +599,16 @@ async function autoplayRefused({ songs }) {
       is(s.row, wanted.title, 'and its row is the one lit');
     }
 
-    // A press anywhere: the deck owes this listener a song.
-    await tab.click('.wordmark');
+    // A press anywhere that is not itself a control: the deck owes this
+    // listener a song, and this is what pays it.
+    await tab.click('.lcd');
     s = await until('the owed song to play', async () => {
       const st = await tab.state();
       return st.playing && st.at > 0 ? st : null;
     });
     if (s) {
       ok(decodeURIComponent(s.src).includes(wanted.file),
-         'the press pays back the song the link named, not the stream');
+         'the press pays back the song the link named');
       is(s.path, wanted.path, 'and the address is unchanged');
     }
   } finally {

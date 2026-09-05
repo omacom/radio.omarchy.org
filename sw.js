@@ -1,13 +1,13 @@
 /* Omarchy Radio service worker.
 
    Caches the shell so the deck opens instantly, works offline and meets the
-   install criteria. Audio deliberately never goes near the cache: the live
-   stream is an endless response, and the on-demand tracks are served as
-   range requests, where storing a partial response breaks seeking.
+   install criteria. Audio deliberately never goes near the cache: the tracks
+   are served as range requests, and storing a partial response breaks
+   seeking.
 
    The podcast feed is served from here now, mirrored hourly by a workflow, so
    it is cached like the playlist and an episode list is there offline. The
-   episode audio is the show's host's and is left alone, like the stream.
+   episode audio is the show's host's and is left alone, like the tracks.
 
    Every song and every episode is a page of its own, written by
    tools/build-routes.py. There are too many to precache and no reason to:
@@ -19,7 +19,7 @@
 
    Bump VERSION to retire every old cache on the next activate. */
 
-var VERSION = 'v4';
+var VERSION = 'v5';
 var SHELL = 'omarchy-radio-' + VERSION;
 var PAGE = '/index.html';
 
@@ -29,9 +29,13 @@ var ASSETS = [
   '/playlist',
   '/podcast',
   '/site.webmanifest',
-  '/assets/css/style.css',
-  '/assets/css/fonts.css',
-  '/assets/js/app.js',
+  /* The deck and its stylesheets are deliberately not here. Their addresses
+     carry a stamp of their contents, written by tools/build-routes.py, so
+     they cannot be listed by name from in here — and do not need to be: a
+     stamped address is cached the first time a page asks for it, and a
+     changed file is a new address that misses and goes to the network. That
+     is what keeps a cached deck from ever being served against a page it no
+     longer fits. */
   '/assets/fonts/jetbrains-mono-latin.woff2',
   '/assets/fonts/space-grotesk-latin.woff2',
   '/assets/fonts/vt323-latin.woff2',
@@ -73,7 +77,7 @@ self.addEventListener('fetch', function (e) {
   var url;
   try { url = new URL(req.url); } catch (err) { return; }
 
-  // The stream and its stats live on another origin. Leave them alone.
+  // The episode audio lives on another origin. Leave it alone.
   if (url.origin !== self.location.origin) return;
 
   // Large and ranged. A cached 206 would come back as a broken track.
@@ -105,7 +109,8 @@ self.addEventListener('fetch', function (e) {
   }
 
   // Everything else: serve the cached copy at once, refresh it behind the
-  // scenes, so an update lands on the following load.
+  // scenes, so an update lands on the following load. Matching includes the
+  // query, which is what makes a stamped address miss when the file changes.
   e.respondWith(
     caches.match(req).then(function (hit) {
       var net = fetch(req).then(function (r) {

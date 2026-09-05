@@ -78,14 +78,12 @@
 <link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 
-<link rel="preconnect" href="https://radio.cliamp.stream" crossorigin>
-<link rel="dns-prefetch" href="https://radio.cliamp.stream">
 <link rel="preload" href="/assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/vt323-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 
-<link rel="stylesheet" href="/assets/css/fonts.css">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/fonts.css?1660f43a8c">
+<link rel="stylesheet" href="/assets/css/style.css?fbcdcf89a2">
 
 <script>
 /* Sets the canvas fit factor before first paint so the layout never snaps (CLS). */
@@ -105,7 +103,7 @@
       "@id": "https://radio.omarchy.org/#website",
       "url": "https://radio.omarchy.org/",
       "name": "Omarchy Radio",
-      "description": "Omarchy Radio",
+      "description": "The community playlist for the Omarchy desktop. Songs about Arch, Hyprland and dotfiles, every one of them sent in as a pull request.",
       "inLanguage": "en",
       "publisher": { "@id": "https://omarchy.org/#organization" }
     },
@@ -128,7 +126,7 @@
       "url": "https://radio.omarchy.org/",
       "name": "Omarchy Radio",
       "isPartOf": { "@id": "https://radio.omarchy.org/#website" },
-      "about": { "@id": "https://radio.omarchy.org/#service" },
+      "about": { "@id": "https://radio.omarchy.org/playlist#playlist" },
       "mentions": { "@id": "https://radio.omarchy.org/#stories" },
       "image": [
         "https://radio.omarchy.org/assets/images/opengraph.png",
@@ -154,24 +152,6 @@
       "description": "A signal from nowhere \u2014 a transmission by the community, for the community.",
       "inLanguage": "en",
       "publisher": { "@id": "https://omarchy.org/#organization" }
-    },
-    {
-      "@type": "RadioBroadcastService",
-      "@id": "https://radio.omarchy.org/#service",
-      "name": "Omarchy Radio",
-      "url": "https://radio.omarchy.org/",
-      "description": "Omarchy Radio",
-      "broadcastDisplayName": "Omarchy Radio",
-      "image": [
-        "https://radio.omarchy.org/assets/images/opengraph.png",
-        "https://radio.omarchy.org/assets/images/opengraph-16x9.png",
-        "https://radio.omarchy.org/assets/images/opengraph-4x3.png",
-        "https://radio.omarchy.org/assets/images/opengraph-square.png"
-      ],
-      "inLanguage": "en",
-      "areaServed": "Worldwide",
-      "broadcastAffiliateOf": { "@id": "https://omarchy.org/#organization" },
-      "parentService": { "@id": "https://omarchy.org/#organization" }
     }
   ]
 }
@@ -187,16 +167,14 @@
 
     <header class="bar">
       <div class="bar-l">
-        <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="currentColor"><path d="M0 0h15v1h-15z"/><path d="M0 1h1v14h-1z"/><path d="M7 1h1v2h-1z"/><path d="M14 1h1v14h-1z"/><path d="M2 2h5v1h-5z"/><path d="M11 2h2v1h-2z"/><path d="M2 3h1v10h-1z"/><path d="M12 3h1v10h-1z"/><path d="M1 7h1v1h-1z"/><path d="M3 12h9v1h-9z"/><path d="M7 13h1v2h-1z"/><path d="M1 14h6v1h-6z"/><path d="M9 14h5v1h-5z"/></svg>
-        <h1 class="wordmark">omarchy radio</h1>
+        <a class="mark" href="/" aria-label="Omarchy Radio, the front of the deck">
+          <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="currentColor"><path d="M0 0h15v1h-15z"/><path d="M0 1h1v14h-1z"/><path d="M7 1h1v2h-1z"/><path d="M14 1h1v14h-1z"/><path d="M2 2h5v1h-5z"/><path d="M11 2h2v1h-2z"/><path d="M2 3h1v10h-1z"/><path d="M12 3h1v10h-1z"/><path d="M1 7h1v1h-1z"/><path d="M3 12h9v1h-9z"/><path d="M7 13h1v2h-1z"/><path d="M1 14h6v1h-6z"/><path d="M9 14h5v1h-5z"/></svg>
+          <h1 class="wordmark">omarchy radio</h1>
+        </a>
         <a class="home" href="https://omarchy.org" target="_blank" rel="noopener">omarchy.org &#8599;</a>
       </div>
       <div class="bar-r">
-        <p class="live-now">
-          <span class="pulse" aria-hidden="true"></span>
-          <span><span id="netActive">&#8212;</span> listening now</span>
-        </p>
-        <p class="net-sum"><span id="netSessions">&#8212;</span> sessions &middot; <span id="netHours">&#8212;</span> h</p>
+        <p class="tagline">every song a pull request</p>
       </div>
     </header>
 
@@ -208,17 +186,17 @@
         <section class="lcd" aria-label="Now playing">
           <div class="scan" aria-hidden="true"></div>
           <div class="lcd-top">
-            <span id="stationLabel">omarchy &middot; omarchy</span>
-            <span id="srcLabel">&#9673; live stream</span>
+            <span id="stationLabel">omarchy &middot; community playlist</span>
+            <span id="srcLabel">playlist</span>
           </div>
           <div class="marq-clip">
             <div class="marq" id="marq">
-              <span class="marq-txt">Omarchy &#8212; the house station</span>
-              <span class="marq-txt" aria-hidden="true">Omarchy &#8212; the house station</span>
+              <span class="marq-txt">Omarchy &#8212; community playlist</span>
+              <span class="marq-txt" aria-hidden="true">Omarchy &#8212; community playlist</span>
             </div>
           </div>
           <div class="lcd-bot">
-            <p class="artist" id="artist">Omarchy &middot; Electronic &middot; continuous rotation</p>
+            <p class="artist" id="artist">community playlist</p>
             <p class="clock">
               <span class="cur" id="curTime">00:00</span>
               <span class="dur">/ <span id="durTime">live</span></span>
@@ -252,16 +230,6 @@
             </div>
           </div>
         </section>
-
-        <section class="stats" aria-label="Live radio statistics">
-          <h2 class="panel-title stats-title">listeners &#8212; live radio</h2>
-          <div class="tiles">
-            <div class="tile"><p class="tile-v" id="tileActive">&#8212;</p><h3 class="tile-l">listening now</h3></div>
-            <div class="tile"><p class="tile-v" id="tilePeak">&#8212;</p><h3 class="tile-l">peak concurrent</h3></div>
-            <div class="tile"><p class="tile-v" id="tileSessions">&#8212;</p><h3 class="tile-l">sessions all time</h3></div>
-            <div class="tile"><p class="tile-v" id="tileHours">&#8212;</p><h3 class="tile-l">listen hours</h3></div>
-          </div>
-        </section>
       </div>
     </div>
 
@@ -278,7 +246,6 @@
 <!-- /page:tabs -->
             </div>
             <button type="button" class="back lyr" id="lyricsBtn" aria-expanded="false" aria-controls="lyricsBox" hidden>lyrics</button>
-            <a class="back" id="backToRadio" href="/"><span class="pulse" aria-hidden="true"></span>live radio</a>
           </div>
         </div>
         <div class="tr-head" id="trHead">
@@ -288,19 +255,13 @@
         </div>
         <ul class="tracks" id="tracks">
 <!-- page:list -->
-<li><a class="track is-on" href="/playlist/downstream-from-motivation"><span class="tr-n">10</span><span class="tr-t"><span class="tr-line"><span class="tr-title">Downstream from Motivation</span><span class="tr-ex" hidden>explicit</span></span><span class="tr-artist">Ryan R. Hughes</span></span><span class="tr-s"><span class="tr-st"></span><span class="tr-c" hidden></span></span></a><a class="tr-link" href="/playlist/downstream-from-motivation" title="Permalink &#8212; press to copy" aria-label="Copy link to Downstream from Motivation">#</a></li>
+<li class="is-on"><a class="track is-on" href="/playlist/downstream-from-motivation"><span class="tr-n">10</span><span class="tr-t"><span class="tr-line"><span class="tr-title">Downstream from Motivation</span><span class="tr-ex" hidden>explicit</span></span><span class="tr-artist">Ryan R. Hughes</span></span><span class="tr-s"><span class="tr-st"></span><span class="tr-c" hidden></span></span></a><a class="tr-link" href="/playlist/downstream-from-motivation" title="Permalink &#8212; press to copy" aria-label="Copy link to Downstream from Motivation">#</a></li>
 <!-- /page:list -->
         </ul>
         <div class="lyr-box" id="lyricsBox" hidden>
           <ol class="lyrics" id="lyrics"></ol>
         </div>
-        <p class="panel-note" id="playlistNote"><!-- page:note -->one of <a href="/playlist">33 tracks on demand</a><!-- /page:note --></p>
-      </section>
-
-      <section class="geo" aria-label="Live radio listener geography">
-        <h2 class="panel-title geo-title">where they listen &#8212; live radio</h2>
-        <ul class="geo-list" id="geoList"></ul>
-        <p class="panel-note">sessions, all time &middot; peak <span id="peak">&#8212;</span> concurrent</p>
+        <p class="panel-note" id="playlistNote"><!-- page:note -->one of <a href="/playlist">33 tracks, on repeat</a><!-- /page:note --></p>
       </section>
     </div>
 
@@ -326,15 +287,15 @@
 <noscript>
   <div class="noscript">
     <h2>Omarchy Radio needs JavaScript to play</h2>
-    <p>The player streams audio and live listener stats in the browser. You can still tune in directly with any media player:</p>
+    <p>The deck plays the playlist in the browser. Every song is a file in the repo, so the list below links straight to them, and any media player will do:</p>
     <ul>
-      <li><code>mpv https://radio.cliamp.stream/omarchy/stream</code> &#8212; Omarchy, the house station</li>
+      <li><code>mpv https://radio.omarchy.org/tracks/</code> &#8212; the songs, one file each</li>
       <li><code>https://api.riverside.com/hosting/1i59HjrN.rss</code> &#8212; Omarchy Stories, in any podcast app</li>
     </ul>
     <p>More about the desktop at <a href="https://omarchy.org">omarchy.org</a>.</p>
   </div>
 </noscript>
 
-<script src="/assets/js/app.js" defer></script>
+<script src="/assets/js/app.js?93f72f2fa7" defer></script>
 </body>
 </html>
