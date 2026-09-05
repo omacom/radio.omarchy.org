@@ -8,6 +8,10 @@
    resolves paths the way GitHub Pages does, and drives chromium through the
    DevTools protocol. No dependencies: node's own WebSocket, and chromium.
 
+   Point it at what is deployed to check a deploy:
+
+       SITE=https://radio.omarchy.org node tools/test-browser.mjs
+
    What it checks, in the two states a browser can be in about autoplay:
 
      - opening /playlist/<song> plays that song, and nothing else
@@ -27,7 +31,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const PORT = 8902;
-const BASE = `http://127.0.0.1:${PORT}`;
+// Point it at the deployed site to check a deploy: SITE=https://radio.omarchy.org
+const SITE = process.env.SITE || '';
+const BASE = SITE.replace(/\/+$/, '') || `http://127.0.0.1:${PORT}`;
 const CDP_PORT = 9333;
 const ROOT = new URL('..', import.meta.url).pathname;
 
@@ -282,10 +288,10 @@ function open(url) {
 
 /* ── the site under test ─────────────────────────────────────────────── */
 function serve() {
-  const proc = spawn('python3', [join(ROOT, 'tools/test-routes.py'), '--serve'], {
+  if (SITE) return { kill() {} }; // testing what is deployed, not what is here
+  return spawn('python3', [join(ROOT, 'tools/test-routes.py'), '--serve'], {
     cwd: ROOT, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore',
   });
-  return proc;
 }
 
 async function routes() {
