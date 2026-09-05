@@ -467,10 +467,16 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 /* ── stat tiles ──────────────────────────────────────── */
 
+/* These four numbers count the live stream, and they sat directly above a
+   list of songs and a list of episodes that they say nothing about. The
+   heading is the whole fix: the numbers were never wrong, only unlabelled. */
+.stats { border-top: 1px solid var(--bd); }
+
+.stats-title { padding: 14px 20px 0; }
+
 .tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--bd);
 }
 
 .tile { padding: 14px 20px; border-left: 1px solid var(--bdF); }
@@ -924,7 +930,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .lcd       { order: 1; }
   .transport { order: 2; }
   .playlist  { order: 3; }
-  .tiles     { order: 4; }
+  .stats     { order: 4; }
   .geo       { order: 5; }
   .foot      { order: 6; }
   .playlist, .geo { border-right: 0; border-top: 1px solid var(--bd); }

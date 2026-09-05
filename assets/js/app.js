@@ -1177,7 +1177,6 @@
     document.title = (S.playing ? marquee.replace(/\s+/g, ' ').trim() + ' — ' : '') +
       'Omarchy Radio';
 
-    el.geoName.textContent = cur.name.toLowerCase();
     paintClock();
   }
 
@@ -1844,7 +1843,7 @@
       'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
       'playGlyph', 'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
       'tileActive', 'tilePeak', 'tileSessions', 'tileHours',
-      'playlistKind', 'playlistName', 'geoName', 'tracks', 'trHead', 'playlistNote',
+      'playlistKind', 'playlistName', 'tracks', 'trHead', 'playlistNote',
       'geoList', 'peak', 'status', 'seg', 'tabSongs', 'tabPodcast',
       'lyricsBtn', 'lyricsBox', 'lyrics',
       'backToRadio', 'installBtn'
