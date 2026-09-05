@@ -874,7 +874,10 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .tracks { max-height: 340px; }
 
   .bar { gap: 14px; }
-  .bar-r { gap: 14px; width: 100%; }
+  /* The tagline crowds the wordmark at this width, and it is a slogan. It is
+     all .bar-r holds, so the box goes too rather than being left to claim a
+     row and a gap with nothing in it. */
+  .bar-r { display: none; }
   .picker { margin-left: auto; }
   .menu { right: auto; left: 0; width: min(240px, 100%); }
 
@@ -945,11 +948,6 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 480px) {
-  /* Flattening .bar-r lets the picker share the wordmark's row instead of
-     claiming one of its own on a screen with no rows to spare. */
-  .bar-r { display: contents; }
-  .tagline { order: 1; margin-left: auto; }
-
   .marq-txt { font-size: 34px; }
   .wordmark { letter-spacing: .2em; }
   .home { display: none; }

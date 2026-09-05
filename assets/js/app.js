@@ -1119,7 +1119,7 @@
     el.srcLabel.textContent = story
       ? 'podcast · episode ' + epNumber(S.ti)
       : t
-        ? 'playlist · track ' + (S.ti + 1) + ' of ' + S.tracks.length
+        ? 'playlist · track ' + (S.ti + 1)
         : 'playlist';
 
     var marquee = it
