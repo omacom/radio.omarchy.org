@@ -9,17 +9,32 @@
   --fg: #e7e6e0;
   --ac: #5ef2a0;
   --bd: #23261f;
-  --bdF: #14170f;
-  --c2: #797b74;
-  --c3: #4a4c46;
-  --rowOn: #101711;
-  --rowHov: #101110;
-  --trk: #1e201d;
-  --lcd: #050505;
-  --acFg: #000000;
-  --acHi: #8bf5b8;
-  --g1: #365f45;
-  --g2: #26402f;
+  --bdF: #151713;
+  --c2: #7d7d79;
+  --c3: #4c4d4a;
+  --rowOn: #14271c;
+  --rowHov: #191a19;
+  --trk: #2b2c2a;
+  --lcd: #050605;
+  --acFg: #070707;
+  --acHi: #8ef6bd;
+  --g1: #36885a;
+  --g2: #276040;
+
+  /* The meter's three zones. Green-theme values, as the pre-script fallback. */
+  --meter-low: #30774f;
+  --meter-mid: #5ef2a0;
+  --meter-high: #95f6c0;
+
+  /* The field's ink ramp. The ground behind the deck is not one colour at
+     varying alpha: it is hard cells, each wearing one of these. Same five
+     steps omarchy.org derives as --t-field-*, mixed here from the accent. */
+  --field-dim: #193525;
+  --field-mid: #327a52;
+  --field-lit: #5ef2a0;
+  --field-hover: #8ef6bd;
+  --field-crest: #bffad9;
+
   --scan: repeating-linear-gradient(180deg, rgba(0,0,0,.42) 0 2px, transparent 2px 4px);
 
   --wt-small: 500;
@@ -42,7 +57,46 @@ h1, h2, h3, p, ul, ol, li, figure { margin: 0; padding: 0; }
 ul, ol { list-style: none; }
 
 a { color: var(--ac); text-decoration: none; }
+
+/* ── icons ───────────────────────────────────────────────
+   src/lib/icons.ts, drawn as cells on a lattice at one cell to the pixel.
+   The transport used characters, and not one of them was in a subset this
+   site ships — geometric shapes and arrows are in neither latin nor
+   latin-ext, so they came from whatever font the browser fell back to, and
+   ▶ and ◀ can arrive as colour emoji on a phone.
+
+   No width or height here: each carries its own, in cells, which is what
+   keeps the steps on the pixel grid. */
+.i {
+  display: block;
+  flex: none;
+  fill: currentColor;
+}
+
+/* An icon set in a line of text sits on the baseline rather than above it. */
+.home .i, .tagline .i {
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 2px;
+}
+
+/* Both faces of a two-state icon are in the page and one is shown: a class
+   is cheaper than rewriting a button forty times a minute, and it keeps the
+   drawing out of the deck. The showing rules are the more specific ones, so
+   they win without an !important or an ordering trick. */
+.tb-play .i-pause,
+.caret .i-caret-up,
+.tb-play.is-playing .i-play,
+.caret.is-open .i-caret-down { display: none; }
+
+.tb-play.is-playing .i-pause,
+.caret.is-open .i-caret-up { display: block; }
 a:hover { color: var(--fg); }
+
+/* The rows of the playlist are links to the tracks they name, and the deck
+   routes them itself. They carry their own colours — the accent is what a
+   playing row wears — so they opt out of the two an ordinary link gets. */
+a.track, a.track:hover { color: inherit; }
 
 button {
   font: inherit;
@@ -64,7 +118,7 @@ button {
 
 /* Touch: no grey flash on tap, and the drag controls must claim the gesture
    or the page pans out from under a finger mid-drag. */
-button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
+a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .seek, .knob { touch-action: none; -webkit-user-select: none; user-select: none; }
 
 @keyframes marq { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -131,6 +185,11 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .bar-l { display: flex; align-items: center; gap: 12px; }
 
+/* The mark and the wordmark are one link to the front. */
+.mark { display: flex; align-items: center; gap: 12px; color: inherit; }
+.mark:hover { color: inherit; }
+.mark:hover .logo { color: var(--acHi); }
+
 /* Omarchy mark, traced from the omarchy.org favicon. It is a monochrome
    glyph, so it takes the theme accent like the square it replaced. */
 .logo {
@@ -160,15 +219,23 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .bar-r { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 
-.live-now {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Where the listener count used to be. Those numbers counted a stream that
+   no longer exists; this says what the deck is instead. */
+/* Where the listener count used to be, and now the way to send a song: the
+   line has always claimed every one of them arrived as a pull request, so it
+   may as well be the door. Dressed like the other link in this bar rather
+   than like a link, because it is a slogan first. */
+.tagline {
   font-size: 10px;
   letter-spacing: .24em;
   text-transform: uppercase;
-  color: var(--ac);
+  white-space: nowrap;
 }
+.tagline a {
+  color: var(--c2);
+  border-bottom: 1px solid var(--bd);
+}
+.tagline a:hover { color: var(--ac); border-color: var(--ac); }
 
 .pulse {
   width: 7px;
@@ -176,14 +243,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   flex: none;
   background: var(--ac);
   animation: blink 1.4s steps(1) infinite;
-}
-
-.net-sum {
-  font-size: 10px;
-  letter-spacing: .24em;
-  text-transform: uppercase;
-  color: var(--c2);
-  white-space: nowrap;
 }
 
 /* theme picker */
@@ -207,7 +266,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 .picker-name { display: flex; align-items: center; gap: 9px; }
 .sw-ac { width: 8px; height: 8px; flex: none; background: var(--ac); }
-.caret { color: var(--c2); }
+.caret { display: flex; align-items: center; color: var(--c2); }
 
 .menu {
   position: absolute;
@@ -287,11 +346,37 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   position: relative;
   background: var(--lcd);
   border-bottom: 1px solid var(--bd);
-  padding: 22px 24px 0;
   overflow: hidden;
 }
 
+/* The readout. Its own box because it is what src/scripts/lcd-vhs.ts moves
+   into the canvas beside it, on a browser that can draw an element into one:
+   the section keeps the ground, the border and the height, and this keeps the
+   padding and everything that is read. */
+.lcd-body { position: relative; padding: 22px 24px 0; }
+
 .scan { position: absolute; inset: 0; pointer-events: none; background: var(--scan); }
+
+/* ── the tape ────────────────────────────────────────────
+   Canvas UI's VHS, over the readout. Both canvases are out of the way until
+   the deck has one running — the class is added by initLcdTape() and only
+   ever on a browser that supports it, so everywhere else this section costs
+   two empty elements and nothing else. */
+
+.lcd-src, .lcd-out {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+.lcd.is-taped .lcd-src { display: block; }
+.lcd.is-taped .lcd-out { display: block; pointer-events: none; }
+
+/* The shader draws its own scanlines, finer than the CSS ones and bending
+   with the tape. Two sets of them read as moiré. */
+.lcd.is-taped .scan { display: none; }
 
 .lcd-top {
   display: flex;
@@ -352,18 +437,55 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .cur { font-size: 30px; line-height: 1; }
 .dur { font-size: 17px; color: var(--g2); }
 
+/* ── the meter ───────────────────────────────────────────
+   A stereo's meter, not a graph: each band is a stack of bricks on a fixed
+   lattice and a brick is on or off, which is the same rule the field's cells
+   follow. --seg is the pitch and --brick the lit part of it, so the gaps are
+   the lattice showing through rather than anything drawn.
+
+   The gradient runs `to top`, which starts it at the bottom of the box — and
+   the boxes are bottom-aligned, so the lattice does not move as a column
+   grows. Anchored anywhere else the bricks would slide against each other.
+
+   frame() sets the height as `calc(var(--seg) * n)` for a whole number of
+   bricks, so a column never ends halfway through one. It is the only place
+   the deck lets CSS do the arithmetic, and it is why the phone can change the
+   pitch on one line without the deck knowing. */
+
 .vis {
+  --segs: 12;
+  --seg: 7px;
+  --brick: 5px;
   display: flex;
   align-items: flex-end;
   gap: 3px;
-  height: 84px;
+  height: calc(var(--seg) * var(--segs));
   margin-top: 16px;
 }
+/* Three zones, the way a stereo's meter has three, and one hue. Depth comes
+   from which ink a brick wears, never from opacity — the same rule the field
+   follows, and the reason the meter and the ground look related.
+   The ramp is derived in theme(), against the LCD's own ground rather than
+   the deck's: this panel is a different surface, and on a light theme a ramp
+   built the dark theme's way washes out at the quiet end. */
 .vis span {
   flex: 1;
-  height: 5%;
-  background: var(--ac);
-  min-height: 2px;
+  /* One brick at rest, so the meter reads as a meter before there is sound. */
+  height: var(--seg);
+  background-image:
+    /* The lattice, painted as gaps in the LCD's ground rather than as holes,
+       so a brick is hard-edged against it. */
+    repeating-linear-gradient(
+      to top,
+      transparent 0 var(--brick),
+      var(--lcd) var(--brick) var(--seg)),
+    /* The zones. Measured in bricks from the bottom, not in percentages of a
+       box whose height is the thing that changes. */
+    linear-gradient(
+      to top,
+      var(--meter-low) 0 calc(var(--seg) * 6),
+      var(--meter-mid) calc(var(--seg) * 6) calc(var(--seg) * 10),
+      var(--meter-high) calc(var(--seg) * 10) 100%);
 }
 
 /* ── transport ───────────────────────────────────────── */
@@ -385,7 +507,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   width: 44px;
   height: 36px;
   color: var(--fg);
-  font-size: 11px;
   border: 1px solid var(--bd);
   margin-left: -1px;
 }
@@ -467,53 +588,28 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 
 /* ── stat tiles ──────────────────────────────────────── */
 
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--bd);
-}
-
-.tile { padding: 14px 20px; border-left: 1px solid var(--bdF); }
-.tile:first-child { border-left: 0; }
-
-.tile-v {
-  font-family: var(--lcdfont);
-  font-size: 34px;
-  line-height: 1;
-  color: var(--ac);
-}
-
-.tile-l {
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--c2);
-  margin-top: 7px;
-}
-
+/* These four numbers count the live stream, and they sat directly above a
+   list of songs and a list of episodes that they say nothing about. The
+   heading is the whole fix: the numbers were never wrong, only unlabelled. */
 /* ── lower row ───────────────────────────────────────── */
 
 .row-bot {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
 
 .playlist {
-  border-right: 1px solid var(--bd);
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-.playlist .panel-head { padding: 16px 20px 10px; }
+.playlist .panel-head { padding: 16px 20px 10px; flex-wrap: wrap; }
 
-/* The one control that says this is a radio. It used to be a 10px text
-   link sitting where a caption goes, so it read as a label rather than
-   something you press. Outlined means the live stream is there to tune
-   into; filled with the dot blinking means it is what you are hearing. */
+/* Outlined, and sitting where a caption goes, so it reads as something you
+   press rather than a label. Filled means it is on. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -530,9 +626,10 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 .back:hover { background: var(--ac); color: var(--acFg); }
 .back:hover .pulse { background: var(--acFg); }
 
+.back[hidden] { display: none; }
+
 .back.is-live { background: var(--ac); color: var(--acFg); }
 .back.is-live .pulse { background: var(--acFg); }
-.back.is-onair .pulse { animation: blink 1.4s steps(1) infinite; }
 
 .tr-head, .track {
   display: grid;
@@ -541,6 +638,69 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Room for the per-row link button, so the columns still line up. */
+/* ── find ────────────────────────────────────────────────
+   Thirty-odd songs is a list you read; a hundred is a list you search. It
+   filters what is on screen and nothing else — the address is deliberately
+   left alone, because a search is not a place and a permalink to somebody
+   else's half-typed query is not worth having. */
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 0 20px;
+  border-top: 1px solid var(--bd);
+  flex: none;
+}
+
+.find-l {
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--c2);
+  flex: none;
+}
+
+/* No border of its own: the row it sits in is the box. */
+.find-i {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  outline: 0;
+}
+.find-i::placeholder { color: var(--c3); }
+/* The engines each draw their own clear button, none of them square. Escape
+   clears it, and the row says so. */
+.find-i::-webkit-search-cancel-button { display: none; }
+.find-i::-webkit-search-decoration { display: none; }
+
+/* The key that puts the cursor here, and — once there is a query — the one
+   that empties it. Pressable as well as printed, because a phone has neither
+   key: there it appears only once there is something to clear. */
+.find-k {
+  flex: none;
+  min-width: 18px;
+  padding: 2px 5px;
+  font-family: var(--lcdfont);
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  color: var(--c2);
+  border: 1px solid var(--bd);
+  cursor: pointer;
+}
+.find-k:hover { color: var(--ac); border-color: var(--ac); }
+
+.find:focus-within .find-l { color: var(--ac); }
+.find:focus-within .find-k { color: var(--ac); border-color: var(--ac); }
+
+.find[hidden] { display: none; }
+
 .tr-head {
   padding: 8px 64px 8px 20px;
   border-top: 1px solid var(--bd);
@@ -552,7 +712,14 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 .ta-r { text-align: right; }
 
+/* position: relative is not for anything drawn: it makes the scroller the
+   offsetParent of its own rows, so a row's offsetTop is its distance down the
+   list. That is what revealNamedRow() measures, and it is a layout number
+   rather than a screen one — which matters, because the whole deck is inside
+   a transform: scale() and a rect would come back multiplied by it while
+   scrollTop stays in layout pixels. */
 .tracks {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -560,7 +727,13 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   overflow-y: auto;
 }
 
+/* A row is two links side by side — the track, and the # that copies its
+   address — so the state belongs to the pair. Put it on either one alone and
+   the highlight stops short of the other, which the full-width panel shows
+   up for what it is. */
 .tracks li { display: flex; align-items: stretch; }
+.tracks li:hover { background: var(--rowHov); }
+.tracks li.is-on { background: var(--rowOn); }
 
 .tr-link {
   flex: 0 0 44px;
@@ -572,7 +745,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--c3);
   border-bottom: 1px solid var(--bdF);
 }
-.tr-link:hover { color: var(--ac); background: var(--rowHov); }
+.tr-link:hover { color: var(--ac); }
 
 .track {
   align-items: center;
@@ -581,8 +754,7 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   padding: 12px 20px;
   border-bottom: 1px solid var(--bdF);
 }
-.track:hover { background: var(--rowHov); }
-.track.is-on { background: var(--rowOn); }
+.track:hover, .track.is-on { background: transparent; }
 
 .tr-n { font-family: var(--lcdfont); font-size: 19px; line-height: 1; color: var(--c2); }
 .track.is-on .tr-n { color: var(--ac); }
@@ -635,12 +807,149 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 
 .tr-s {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   text-align: right;
   font-size: 9px;
   letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--ac);
 }
+
+/* Says the row has more under it, and which way pressing it goes. */
+.tr-c {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--c2);
+}
+.tr-c[hidden] { display: none; }
+.track.is-on .tr-c { color: var(--ac); }
+
+/* ── lyrics ──────────────────────────────────────────────
+   The sheet takes over the playlist box rather than opening a panel of
+   its own: the deck is a fixed canvas, and this is already the panel
+   about the songs. Same footprint, one list swapped for another. */
+
+.head-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Two lists, one panel. A pair of pills would read as two more buttons in a
+   row that already has two; sharing a box says they are one control with a
+   side currently chosen. */
+.seg {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--bd);
+}
+
+.seg-b {
+  display: inline-flex;
+  align-items: center;
+  /* The tracking pushes the last letter's whitespace out; the icon needs less
+     room after it than the gap would give it. */
+  gap: 7px;
+  padding: 7px 12px 7px 10px;
+  font-size: 10px;
+  font-weight: var(--wt-small);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--c2);
+  white-space: nowrap;
+}
+.seg[hidden] { display: none; }
+.seg-b + .seg-b { border-left: 1px solid var(--bd); }
+.seg-b:hover { color: var(--fg); background: var(--rowHov); }
+.seg-b.is-on { color: var(--acFg); background: var(--ac); }
+
+.tr-head[hidden], .tracks[hidden] { display: none; }
+
+.lyr-box {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--bd);
+}
+.lyr-box[hidden] { display: none; }
+
+.lyrics {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 20px 22px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--fg);
+}
+
+.ly-line { padding: 1px 0; }
+
+/* A chapter knows where it starts, so the line is worth pressing. It is a
+   real button inside the line, which keeps the sheet a list and the jump a
+   control. */
+.ly-jump button {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 0;
+  color: inherit;
+}
+.ly-jump button:hover { color: var(--ac); }
+.ly-t {
+  flex: none;
+  font-family: var(--lcdfont);
+  font-size: 15px;
+  line-height: 1.4;
+  opacity: .65;
+}
+
+/* A timed sheet reads as one line lit against the rest. An untimed one has
+   no current line to light, so it stays evenly readable instead of sitting
+   permanently dimmed. */
+.is-timed .ly-line { color: var(--c3); transition: color .2s linear; }
+.is-timed .ly-line.is-on { color: var(--ac); }
+
+@media (prefers-reduced-motion: reduce) {
+  .is-timed .ly-line { transition: none; }
+}
+
+/* ── the open episode ────────────────────────────────────
+   An episode is an hour of someone talking, not three minutes of song: what
+   it is about and where its parts start are the difference between pressing
+   play and not. So the podcast tab opens the one playing in place, under its
+   own row, instead of putting it behind a toggle that hides the list. */
+
+.tracks li.ep-open {
+  display: block;
+  padding: 2px 20px 16px;
+  background: var(--rowOn);
+  border-bottom: 1px solid var(--bdF);
+}
+
+.ep-h {
+  padding: 12px 0 6px;
+  font-size: 9px;
+  font-weight: var(--wt-small);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--c2);
+}
+
+.ep-notes p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c2);
+  max-width: 70ch;
+  /* Shows put bare links in their notes, and one of those is longer than any
+     panel. It wraps rather than pushing the list sideways. */
+  overflow-wrap: anywhere;
+}
+.ep-notes p + p { margin-top: 7px; }
 
 .panel-note {
   padding: 12px 20px;
@@ -651,42 +960,10 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   color: var(--c3);
 }
 
-.geo { display: flex; flex-direction: column; min-height: 0; }
+/* The podcast is somebody else's, so its count carries a way to get to it. */
+.panel-note a { color: var(--ac); }
+.panel-note a:hover { color: var(--fg); }
 
-.geo-title { padding: 16px 20px 10px; flex: none; }
-
-.geo-list {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid var(--bd);
-}
-
-.geo-row { padding: 11px 20px; border-bottom: 1px solid var(--bdF); }
-
-.geo-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.geo-name {
-  font-size: 11px;
-  letter-spacing: .06em;
-  color: var(--fg);
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.geo-val { font-family: var(--lcdfont); font-size: 17px; line-height: 1; color: var(--ac); }
-
-.geo-bar { height: 3px; margin-top: 8px; background: var(--trk); }
-.geo-bar span { display: block; height: 3px; background: var(--ac); }
 
 /* ── footer ──────────────────────────────────────────── */
 
@@ -745,10 +1022,10 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 /* The small uppercase labels run 8-11px with wide tracking in dimmed colours;
    a heavier weight keeps them legible. JetBrains Mono ships 400/500/700 here,
    so 500 is a real weight rather than a synthesised one. */
-.wordmark, .home, .live-now, .net-sum, .picker-btn, .menu button,
+.wordmark, .home, .tagline, .picker-btn, .menu button,
 .panel-title, .panel-meta, .lcd-top, .artist,
-.tile-l, .tr-head, .tr-s, .tr-artist, .tr-ex, .knob-lbl, .back,
-.panel-note, .geo-name, .foot, .status {
+.tr-head, .tr-s, .tr-artist, .tr-ex, .knob-lbl, .back,
+.panel-note, .foot, .status {
   font-weight: var(--wt-small);
 }
 
@@ -786,27 +1063,30 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .lcd       { order: 1; }
   .transport { order: 2; }
   .playlist  { order: 3; }
-  .tiles     { order: 4; }
-  .geo       { order: 5; }
-  .foot      { order: 6; }
-  .playlist, .geo { border-right: 0; border-top: 1px solid var(--bd); }
-
-  .playlist { border-right: 0; }
-  .tracks, .geo-list { max-height: 340px; }
+  .foot      { order: 4; }
+  .playlist { border-right: 0; border-top: 1px solid var(--bd); }
+  .tracks { max-height: 340px; }
+  .find { padding: 0 16px; }
+  /* No slash key to press, and nothing to clear until something is typed. */
+  .find-k { display: none; min-height: 44px; padding: 0 12px; }
+  .find.has-q .find-k { display: inline-flex; align-items: center; }
 
   .bar { gap: 14px; }
-  .bar-r { gap: 14px; width: 100%; }
+  /* The tagline crowds the wordmark at this width, and it is a slogan. It is
+     all .bar-r holds, so the box goes too rather than being left to claim a
+     row and a gap with nothing in it. */
+  .bar-r { display: none; }
   .picker { margin-left: auto; }
   .menu { right: auto; left: 0; width: min(240px, 100%); }
 
-  .lcd { padding: 18px 16px 0; }
+  .lcd-body { padding: 18px 16px 0; }
   .lcd-top { font-size: 9px; letter-spacing: .18em; }
   .lcd-bot { align-items: baseline; gap: 12px; }
   .artist { font-size: 9px; letter-spacing: .14em; }
   .cur { font-size: 24px; }
   .dur { font-size: 14px; }
   .marq-txt { font-size: 44px; }
-  .vis { height: 60px; }
+  .vis { --seg: 6px; --brick: 4px; }
   .transport { padding: 14px 16px; }
   .seek { order: 3; width: 100%; flex-basis: 100%; }
   .knobs { margin-left: 0; width: 100%; justify-content: space-between; }
@@ -821,7 +1101,6 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .tb-play { flex: 1.6; }
 
   .seek { height: 44px; }
-  .seek.is-live { display: none; }
 
   /* A dial is the wrong shape for a thumb, and at this size both read as
      empty boxes. They become bars. knobDrag already answers to sideways
@@ -853,27 +1132,22 @@ button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   .menu { max-height: 60vh; }
   .picker-btn { min-height: 44px; }
   .back { min-height: 44px; display: inline-flex; align-items: center; }
+  .seg-b { min-height: 44px; display: inline-flex; align-items: center; }
+  .ly-jump button { min-height: 36px; align-items: center; }
+  /* The list is capped for the phone layout; an open episode needs the room
+     to be worth opening. */
+  .tracks { max-height: 420px; }
   .install { min-height: 44px; }
 
   /* The marquee sat 2px off the line beneath it. */
   .marq-clip { margin: 8px 0 12px; }
-  .vis { height: 72px; }
 
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tile:nth-child(3) { border-left: 0; }
-  .tile:nth-child(n+3) { border-top: 1px solid var(--bdF); }
 }
 
 @media (max-width: 480px) {
-  /* Flattening .bar-r lets the picker share the wordmark's row instead of
-     claiming one of its own on a screen with no rows to spare. */
-  .bar-r { display: contents; }
-  .live-now { order: 1; margin-left: auto; }
-
   .marq-txt { font-size: 34px; }
   .wordmark { letter-spacing: .2em; }
   .home { display: none; }
-  .net-sum { display: none; }
   .picker-btn { min-width: 140px; }
 }
 

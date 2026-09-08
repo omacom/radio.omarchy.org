@@ -1,0 +1,18 @@
+---
+/* The header: the mark, the wordmark, a way back to the desktop, and — in the
+   line that says every song is a pull request — the way to send one. */
+import { SUBMIT } from '../lib/site.ts';
+import Icon from './Icon.astro';
+---
+<header class="bar">
+  <div class="bar-l">
+    <a class="mark" href="/" aria-label="Omarchy Radio, the front of the deck">
+      <svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" fill="currentColor"><path d="M0 0h15v1h-15z"/><path d="M0 1h1v14h-1z"/><path d="M7 1h1v2h-1z"/><path d="M14 1h1v14h-1z"/><path d="M2 2h5v1h-5z"/><path d="M11 2h2v1h-2z"/><path d="M2 3h1v10h-1z"/><path d="M12 3h1v10h-1z"/><path d="M1 7h1v1h-1z"/><path d="M3 12h9v1h-9z"/><path d="M7 13h1v2h-1z"/><path d="M1 14h6v1h-6z"/><path d="M9 14h5v1h-5z"/></svg>
+      <h1 class="wordmark">omarchy radio</h1>
+    </a>
+    <a class="home" href="https://omarchy.org" target="_blank" rel="noopener">omarchy.org <Icon name="arrow-ne" /></a>
+  </div>
+  <div class="bar-r">
+    <p class="tagline"><a href={SUBMIT} target="_blank" rel="noopener">every song a pull request <Icon name="arrow-ne" /></a></p>
+  </div>
+</header>

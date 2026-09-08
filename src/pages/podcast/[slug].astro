@@ -1,0 +1,65 @@
+---
+/* One page per episode.
+ *
+ * The show publishes, the hourly mirror in .github/workflows/stories.yml
+ * brings the feed up to date, and the deploy that follows writes this page.
+ * An episode published since the last one still opens: the host serves 404,
+ * which is the deck, and the deck reads the address and finds it in the feed.
+ */
+import type { GetStaticPaths } from 'astro';
+import Deck from '../../layouts/Deck.astro';
+import { readEpisodes } from '../../lib/sources.ts';
+import { clip, isReservedSlug, seedOf } from '../../lib/lists.ts';
+import type { Item, Show } from '../../lib/item.ts';
+import { audioMeta } from '../../lib/seo.ts';
+import { episodeNode } from '../../lib/schema.ts';
+
+export const getStaticPaths = (() => {
+  const show = readEpisodes();
+
+  for (const ep of show.episodes) {
+    if (isReservedSlug(ep.key)) {
+      throw new Error(
+        `${JSON.stringify(ep.title)} slugs to ${ep.key}, which is the address of the list ` +
+        'itself. The page for one of them would quietly overwrite the other.',
+      );
+    }
+  }
+
+  return show.episodes.map((episode) => ({
+    params: { slug: episode.slug },
+    props: { episode, show },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  episode: Item;
+  show: Show;
+}
+
+const { episode, show } = Astro.props;
+const path = `/${episode.key}`;
+const description =
+  clip(episode.summary ?? '') ||
+  `${episode.title}, an episode of ${show.name}: the show the community makes about ` +
+  'running the Omarchy desktop.';
+const extra = [
+  ...audioMeta(episode.url),
+  ...(episode.date ? [{ property: 'article:published_time', content: episode.date }] : []),
+];
+---
+<Deck
+  head={{
+    title: `${episode.title} · ${show.name}`,
+    description,
+    path,
+    ogType: 'article',
+    extra,
+  }}
+  schema={episodeNode(episode, path, show.home)}
+  seed={seedOf(episode)}
+  kind="podcast"
+  list={show.episodes}
+  only={episode}
+  show={show}
+/>

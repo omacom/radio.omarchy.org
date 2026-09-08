@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Renders tools/og.html to the social cards in assets/images/.
-# Needs chromium and python3 to serve the fonts, which the card pulls
-# through assets/css/fonts.css.
+# Renders tools/og.html to the social cards in public/assets/images/.
+# Needs chromium, and python3 to serve the fonts the card pulls through
+# src/styles/fonts.css.
+#
+# It renders against dist/, with the card copied in beside the built site, so
+# the faces it draws with are the ones the site ships and the absolute
+# /assets/fonts/ paths in fonts.css resolve. Run npm run build first.
 #
 #   opengraph.png         1200x630   og:image, twitter:image
 #   opengraph-16x9.png    1200x675   schema.org image
@@ -11,7 +15,11 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 port="${PORT:-8899}"
-imgs="$root/assets/images"
+imgs="$root/public/assets/images"
+dist="$root/dist"
+
+[ -d "$dist/assets/fonts" ] || {
+  echo "no dist/ to render against. Run: npm run build" >&2; exit 1; }
 
 # Deliberately not $BROWSER: that is the desktop's "open a URL for a human"
 # launcher (on Omarchy, omarchy-launch-browser), which ignores the headless
@@ -26,11 +34,20 @@ fi
   echo "no chromium-family browser found (set OG_BROWSER)" >&2; exit 1; }
 
 tmp="$(mktemp -d)"
-python3 -m http.server "$port" --bind 127.0.0.1 --directory "$root" >/dev/null 2>&1 &
-server=$!
-trap 'kill "$server" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-base="http://127.0.0.1:$port/tools/og.html"
+# The card, and the one stylesheet it names, sitting where the built site's
+# own /assets/fonts/ paths resolve. Removed again on the way out, so a render
+# cannot leave a page behind in what gets deployed.
+card="$dist/.og-card.html"
+sheet="$dist/.og-fonts.css"
+sed 's#\.\./src/styles/fonts\.css#/.og-fonts.css#' "$root/tools/og.html" > "$card"
+cp "$root/src/styles/fonts.css" "$sheet"
+
+python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dist" >/dev/null 2>&1 &
+server=$!
+trap 'kill "$server" 2>/dev/null || true; rm -rf "$tmp" "$card" "$sheet"' EXIT
+
+base="http://127.0.0.1:$port/.og-card.html"
 
 # Wait for the card to actually serve. Failing here beats screenshotting
 # a browser error page over cards that looked fine last time.

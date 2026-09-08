@@ -1,0 +1,25 @@
+{
+  "name": "omarchy-radio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The site behind radio.omarchy.org — a community playlist that plays itself.",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "node tools/test-routes.mjs",
+    "test:browser": "node tools/test-browser.mjs"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.5",
+    "astro": "^7.3.1",
+    "fast-xml-parser": "^5.3.0",
+    "typescript": "^5.9.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
