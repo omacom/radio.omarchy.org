@@ -164,6 +164,15 @@ window.__state = function () {
       function (li) { return li.dataset.skin; }),
     tab: (document.querySelector('.seg-b.is-on') || {}).id || '',
     note: (document.getElementById('playlistNote') || {}).textContent || '',
+    shuffle: (function () {
+      var button = document.getElementById('shuffle');
+      return button && button.getAttribute ? button.getAttribute('aria-pressed') || '' : '';
+    })(),
+    shuffleVisible: (function () {
+      var button = document.getElementById('shuffle');
+      return !!(button && !button.hidden &&
+        (!window.getComputedStyle || window.getComputedStyle(button).display !== 'none'));
+    })(),
     plays: window.__probe.plays.slice(),
     statuses: window.__probe.statuses.slice(),
     copied: window.__probe.copied.slice(),
@@ -908,6 +917,105 @@ async function autoplayAllowed({ songs, eps }) {
   }
 }
 
+async function shuffle({ songs, eps }) {
+  section('shuffling the music without losing the listening run');
+  const browser = await Browser.launch('no-user-gesture-required');
+  const tab = await browser.tab();
+  try {
+    await tab.go(songs[0].path);
+    let s = await until('the playlist to settle before shuffling', async () => {
+      const st = await tab.state();
+      return st.playing && st.rows >= songs.length ? st : null;
+    });
+    if (!s) return;
+
+    const start = s.row;
+    const address = s.path;
+    await tab.click('#shuffle');
+    s = await until('shuffle to turn on', async () => {
+      const st = await tab.state();
+      return st.shuffle === 'true' ? st : null;
+    });
+    if (!s) return;
+    is(s.row, start, 'turning shuffle on leaves the current song alone');
+    is(s.path, address, 'and does not change the address');
+    is(s.shuffleVisible, true, 'the shuffle control is visible for songs');
+
+    const step = async (what) => {
+      const from = (await tab.state()).row;
+      await tab.click('#next');
+      return until(what, async () => {
+        const st = await tab.state();
+        return st.row && st.row !== from ? st : null;
+      });
+    };
+
+    const first = await step('the first shuffled song');
+    if (!first) return;
+    const second = await step('the second shuffled song');
+    if (!second) return;
+    await tab.click('#prev');
+    s = await until('the previous shuffled song', async () => {
+      const st = await tab.state();
+      return st.row === first.row ? st : null;
+    });
+    if (!s) return;
+    s = await step('the forward shuffled song after going back');
+    if (!s) return;
+    is(s.row, second.row, 'next resumes the shuffled listening history');
+
+    await tab.eval(`(function () {
+      var live = window.__probe.media.filter(function (m) { return !m.paused; })[0];
+      if (live) live.dispatchEvent(new Event('ended'));
+    })()`);
+    s = await until('the song after a shuffled track ends', async () => {
+      const st = await tab.state();
+      return st.row && st.row !== second.row ? st : null;
+    });
+    if (!s) return;
+
+    const heard = new Set([start, first.row, second.row, s.row]);
+    while (heard.size < songs.length) {
+      s = await step('another unplayed shuffled song');
+      if (!s) return;
+      ok(!heard.has(s.row), `shuffle does not repeat ${s.row} before its cycle ends`);
+      heard.add(s.row);
+    }
+    is(heard.size, songs.length, 'one shuffled cycle hears every song once');
+
+    const last = s.row;
+    s = await step('the first song in the next shuffled cycle');
+    if (!s) return;
+    ok(s.row !== last, 'the seam between shuffle cycles does not repeat the current song');
+
+    await tab.click('#shuffle');
+    s = await until('shuffle to turn off', async () => {
+      const st = await tab.state();
+      return st.shuffle === 'false' ? st : null;
+    });
+    if (!s) return;
+    const at = songs.findIndex((song) => song.title === s.row);
+    await tab.click('#next');
+    s = await until('the sequential song after shuffle', async () => {
+      const st = await tab.state();
+      return st.row === songs[(at + 1) % songs.length].title ? st : null;
+    });
+    if (s) is(s.shuffle, 'false', 'turning shuffle off restores sequential playback');
+
+    if (eps.length) {
+      await tab.go(eps[0].path);
+      s = await until('the podcast episode to play', async () => {
+        const st = await tab.state();
+        return st.playing && st.tab === 'tabPodcast' ? st : null;
+      });
+      if (s) is(s.shuffleVisible, false, 'podcast playback does not offer shuffle');
+    }
+  } finally {
+    await tab.close();
+    await browser.close();
+  }
+}
+
 async function autoplayRefused({ songs }) {
   section('with autoplay refused, the way a browser treats a first visit');
   const browser = await Browser.launch('user-gesture-required');
@@ -1026,6 +1134,7 @@ try {
   const site = await routes();
   console.log(`${site.songs.length} songs, ${site.eps.length} episodes`);
   await autoplayAllowed(site);
+  await shuffle(site);
   await autoplayRefused(site);
   await find(site);
   await reveal(site);
