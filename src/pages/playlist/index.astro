@@ -1,0 +1,22 @@
+---
+/* Every song there is. */
+import Deck from '../../layouts/Deck.astro';
+import { readEpisodes, readTracks } from '../../lib/sources.ts';
+import { playlistNode } from '../../lib/schema.ts';
+
+const tracks = readTracks();
+const show = readEpisodes();
+---
+<Deck
+  head={{
+    title: 'The playlist · Omarchy Radio',
+    description:
+      `Every song on Omarchy Radio, ${tracks.length} of them, each one made and sent in by ` +
+      'somebody who runs the desktop. Press one to play it.',
+    path: '/playlist',
+  }}
+  schema={playlistNode(tracks)}
+  kind="playlist"
+  list={tracks}
+  show={show}
+/>

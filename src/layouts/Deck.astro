@@ -1,0 +1,144 @@
+---
+/* The deck. Every page on this site is this file.
+ *
+ * Thirty-eight addresses, one layout: what a page differs by is the head, the
+ * item baked into it, and which list the panel is showing with which row
+ * picked out. Those are the props.
+ */
+import { CANON } from '../lib/site.ts';
+import { headMeta, type Head } from '../lib/seo.ts';
+import { siteGraph } from '../lib/schema.ts';
+import Bar from '../components/Bar.astro';
+import Lcd from '../components/Lcd.astro';
+import Transport from '../components/Transport.astro';
+import Panel from '../components/Panel.astro';
+import Foot from '../components/Foot.astro';
+import Noscript from '../components/Noscript.astro';
+import type { Item, Show } from '../lib/item.ts';
+import type { Kind } from '../lib/slug.ts';
+import '../styles/fonts.css';
+import '../styles/style.css';
+
+interface Props {
+  head: Head;
+  /** Structured data for what this page is about, beside the site's own graph. */
+  schema?: unknown;
+  /** The item this page was generated for, baked in so it can start playing
+      on the first tick rather than after a fetch. */
+  seed?: Record<string, unknown> | null;
+  /** Which of the two lists the panel is showing. */
+  kind: Kind;
+  /** The whole list behind the panel. A permalink page passes it too: its one
+      row keeps the number it has in the list, and the note counts the rest. */
+  list: Item[];
+  /** The one this page is for, if it is for one. */
+  only?: Item | null;
+  show: Show;
+}
+
+const { head, schema, seed = null, kind, list, only = null, show } = Astro.props;
+
+/* The escape is what keeps a title with a bracket in it from ending the
+   script early. */
+const safeJson = (value: unknown) =>
+  JSON.stringify(value, null, 2).replace(/</g, '\\u003c');
+const seedJson = seed ? JSON.stringify(seed).replace(/</g, '\\u003c') : '';
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+<title>{head.title}</title>
+<link rel="canonical" href={CANON + head.path} />
+{headMeta(head).map((m) => (
+  <meta name={m.name} property={m.property} content={m.content} />
+))}
+
+<meta name="theme-color" content="#0a0b0a" />
+
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Omarchy Radio" />
+<meta name="color-scheme" content="dark light" />
+<meta name="author" content="Omarchy" />
+
+<meta property="og:site_name" content="Omarchy" />
+<meta property="og:image" content={`${CANON}/assets/images/opengraph.png`} />
+<meta property="og:image:secure_url" content={`${CANON}/assets/images/opengraph.png`} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:alt" content="Omarchy Radio" />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content={`${CANON}/assets/images/opengraph.png`} />
+<meta name="twitter:image:alt" content="Omarchy Radio" />
+
+<link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/assets/images/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/assets/images/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+
+<link rel="preload" href="/assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/assets/fonts/vt323-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+<script is:inline>
+/* Sets the canvas fit factor before first paint so the layout never snaps
+   (CLS). Inline, and not the deck's job, because the deck is deferred and
+   this has to have happened by the first paint. measureFit() in
+   src/scripts/deck.ts keeps it current on resize and has to agree with this,
+   1180x880 and all. */
+(function () {
+  var w = innerWidth, h = innerHeight;
+  var f = w <= 900 ? 1 : Math.max(0.2, Math.min(1, (w - 40) / 1180, (h - 40) / 880));
+  document.documentElement.style.setProperty('--fit', f);
+})();
+</script>
+
+{seedJson && (
+  /* Inline and ahead of the deck, so it is there on the first tick. */
+  <script is:inline set:html={`window.__ITEM__ = ${seedJson};`} />
+)}
+
+<script type="application/ld+json" is:inline set:html={safeJson(siteGraph(show.home))} />
+{schema && <script type="application/ld+json" is:inline set:html={safeJson(schema)} />}
+</head>
+<body>
+
+<div class="stage">
+  <canvas class="bg" id="bg" aria-hidden="true"></canvas>
+
+  <div class="fit" id="fit">
+  <div class="app" id="app">
+
+    <Bar />
+
+    <div class="row-top">
+      <div class="deck">
+        <Lcd />
+        <Transport />
+      </div>
+    </div>
+
+    <div class="row-bot">
+      <Panel kind={kind} list={list} only={only} show={show} />
+    </div>
+
+    <Foot />
+
+  </div>
+  </div>
+</div>
+
+<Noscript />
+
+<script>
+  import '../scripts/deck.ts';
+</script>
+</body>
+</html>

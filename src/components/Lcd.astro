@@ -1,0 +1,43 @@
+---
+/* The one lit surface, and the only thing on the deck that is a display
+ * rather than a control.
+ *
+ * Three elements make the tape effect possible: the readout itself, a canvas
+ * that can host it, and a canvas the shader draws to. On a browser that can
+ * draw an element into a canvas, src/scripts/lcd-vhs.ts moves the readout
+ * into the first and paints the third. Everywhere else the readout is where
+ * it already is, wearing the CSS scanlines it always wore, and neither canvas
+ * does anything.
+ *
+ * The readout carries no controls, which is what makes it the right surface
+ * for this: nothing here has to be clicked at a position the shader has moved.
+ */
+---
+<section class="lcd" id="lcd" aria-label="Now playing">
+  <!-- The tape host. Empty until a browser says it can host the readout. -->
+  <canvas class="lcd-src" id="lcdSrc" layoutsubtree="true"></canvas>
+
+  <div class="lcd-body" id="lcdBody">
+    <div class="scan" aria-hidden="true"></div>
+    <div class="lcd-top">
+      <span id="stationLabel">omarchy &middot; community playlist</span>
+      <span id="srcLabel">playlist</span>
+    </div>
+    <div class="marq-clip">
+      <div class="marq" id="marq">
+        <span class="marq-txt">Omarchy &#8212; community playlist</span>
+        <span class="marq-txt" aria-hidden="true">Omarchy &#8212; community playlist</span>
+      </div>
+    </div>
+    <div class="lcd-bot">
+      <p class="artist" id="artist">community playlist</p>
+      <p class="clock">
+        <span class="cur" id="curTime">00:00</span>
+        <span class="dur">/ <span id="durTime">live</span></span>
+      </p>
+    </div>
+    <div class="vis" id="vis" aria-hidden="true"></div>
+  </div>
+
+  <canvas class="lcd-out" id="lcdOut" aria-hidden="true"></canvas>
+</section>

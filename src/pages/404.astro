@@ -1,0 +1,21 @@
+---
+/* Whatever was asked for and is not here.
+ *
+ * GitHub Pages serves this for any address it has no file for, which is how a
+ * link to an episode published since the last build still opens the deck: it
+ * reads the address, finds the episode in the feed, and plays it. Not indexed
+ * — it is whatever was asked for, not a page of its own.
+ */
+import Deck from '../layouts/Deck.astro';
+import { readEpisodes, readTracks } from '../lib/sources.ts';
+import { SITE_DESC } from '../lib/site.ts';
+
+const tracks = readTracks();
+const show = readEpisodes();
+---
+<Deck
+  head={{ title: 'Omarchy Radio', description: SITE_DESC, path: '/', index: false }}
+  kind="playlist"
+  list={tracks}
+  show={show}
+/>

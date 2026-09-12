@@ -1,0 +1,14 @@
+---
+/* One of src/lib/icons.ts, in the page. The deck draws the same ones from the
+   same table when it builds a row itself. */
+import { iconSvg } from '../lib/icons.ts';
+
+interface Props {
+  name: string;
+  /** Extra classes, for the ones shown and hidden in pairs. */
+  class?: string;
+}
+
+const { name, class: cls = '' } = Astro.props;
+---
+<Fragment set:html={iconSvg(name, cls)} />

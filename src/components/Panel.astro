@@ -1,0 +1,65 @@
+---
+/* The list, and the switch over it.
+ *
+ * Two lists, one panel: the songs are a playlist of this station's own, the
+ * podcast is a show that happens to be listenable here. The page arrives with
+ * the rows already in it — a permalink with its one row, a list with all of
+ * them — and the deck rebuilds them a moment later out of the manifest and
+ * the feed.
+ */
+import { SHOW_PODCAST } from '../lib/site.ts';
+import { noteFor, panelTitle, rowsFor } from '../lib/rows.ts';
+import type { Item, Show } from '../lib/item.ts';
+import type { Kind } from '../lib/slug.ts';
+import TrackRow from './TrackRow.astro';
+import Icon from './Icon.astro';
+
+interface Props {
+  kind: Kind;
+  /** The whole list. A permalink page passes it too, so its one row keeps the
+      number it has in the list and the note can count the rest. */
+  list: Item[];
+  /** The one this page is for, if it is for one. */
+  only?: Item | null;
+  show: Show;
+}
+
+const { kind, list, only = null, show } = Astro.props;
+const podcast = kind === 'podcast';
+const rows = rowsFor(list, kind, only);
+const title = panelTitle(kind, show);
+const note = noteFor(kind, list, only, show);
+---
+<section class="playlist" aria-label={podcast ? 'Episodes' : 'Playlist'}>
+  <div class="panel-head">
+    <h2 class="panel-title"><span id="playlistKind">{title.kind}</span> &#8212; <span id="playlistName">{title.name}</span></h2>
+    <div class="head-btns">
+      <div class="seg" id="seg" hidden={!SHOW_PODCAST}>
+        <a class:list={['seg-b', { 'is-on': !podcast }]} id="tabSongs" href="/playlist" aria-current={!podcast ? 'page' : undefined}><Icon name="note" />songs</a>
+        <a class:list={['seg-b', { 'is-on': podcast }]} id="tabPodcast" href="/podcast" aria-current={podcast ? 'page' : undefined}><Icon name="mic" />podcast</a>
+      </div>
+      <button type="button" class="back lyr" id="lyricsBtn" aria-expanded="false" aria-controls="lyricsBox" hidden>lyrics</button>
+    </div>
+  </div>
+  <div class="find" id="findRow">
+    <label class="find-l" for="find">find</label>
+    <input class="find-i" id="find" type="search" autocomplete="off" spellcheck="false"
+           aria-controls="tracks"
+           placeholder={podcast ? 'an episode' : 'a song, or whoever made it'} />
+    <button type="button" class="find-k" id="findHint" aria-label="Clear the search">/</button>
+  </div>
+  <div class="tr-head" id="trHead">
+    <span>#</span>
+    <span>title</span>
+    <span class="ta-r">state</span>
+  </div>
+  <ul class="tracks" id="tracks">
+    {rows.map((row) => (
+      <TrackRow item={row.item} number={row.number} sub={row.sub} on={row.on} />
+    ))}
+  </ul>
+  <div class="lyr-box" id="lyricsBox" hidden>
+    <ol class="lyrics" id="lyrics"></ol>
+  </div>
+  <p class="panel-note" id="playlistNote" set:html={note}></p>
+</section>

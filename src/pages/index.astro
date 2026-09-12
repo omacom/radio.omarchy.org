@@ -1,0 +1,20 @@
+---
+/* The front of the deck.
+ *
+ * Nothing is named here, so the playlist is what answers: from the top, in
+ * order, round again at the end. It leaves the address alone, which is what
+ * keeps a permalink meaning a song somebody picked.
+ */
+import Deck from '../layouts/Deck.astro';
+import { readEpisodes, readTracks } from '../lib/sources.ts';
+import { SITE_DESC } from '../lib/site.ts';
+
+const tracks = readTracks();
+const show = readEpisodes();
+---
+<Deck
+  head={{ title: 'Omarchy Radio', description: SITE_DESC, path: '/' }}
+  kind="playlist"
+  list={tracks}
+  show={show}
+/>

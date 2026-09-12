@@ -1,0 +1,136 @@
+# Builds the site and publishes it.
+#
+# Astro writes the page that sits behind every permalink — one file per song,
+# one per episode — out of tracks/playlist.json and the mirrored feed. That
+# used to be tools/build-routes.py, and the pages it wrote were committed:
+# adding one song meant a pull request carrying the thirty-odd files that song
+# changed. Now the build runs here and nothing generated lives in the repo.
+#
+# Contributors still send an MP3 and three lines of JSON. They no longer send
+# a diff of thirty-five generated pages with it.
+#
+# Pages has to be set to deploy from GitHub Actions rather than from a branch
+# for this to be what is served: Settings → Pages → Source → GitHub Actions,
+# or
+#
+#     gh api -X PUT repos/omacom/radio.omarchy.org/pages -f build_type=workflow
+#
+# That is a one-time repository setting and not something a workflow can do for
+# itself: actions/configure-pages only creates a Pages site that does not exist
+# yet, and leaves an existing one on whatever source it already has. So the
+# build checks it first and says so, rather than spending four minutes and a
+# 160 MB upload to fail at the last step with "Not Found".
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  # The same build and the same checks, without the publish: a pull request
+  # that would not build is worth knowing about before it is merged, and after
+  # a merge is too late here because the merge is the deploy.
+  pull_request:
+  workflow_dispatch:
+  # stories.yml calls this after mirroring an episode in. It has to: a push
+  # made with GITHUB_TOKEN does not set off another workflow, so the hourly
+  # commit would otherwise sit there unpublished until somebody else pushed.
+  workflow_call:
+    inputs:
+      ref:
+        description: What to build. The caller's own commit by default, which
+          is not what a caller that has just pushed one wants.
+        type: string
+        required: false
+        default: ''
+
+# A deploy in flight and a second one behind it are two halves of a race for
+# the same site, so they queue rather than overlap. Not shared with the feed
+# mirror: this workflow is what that one calls, and a group held by the caller
+# is a group the callee waits on forever.
+#
+# A pull request is not in that race. It gets a group of its own so a check
+# never queues behind a deploy, and a second push to a branch calls off the
+# check still running on the first.
+concurrency:
+  group: >-
+    ${{ github.event_name == 'pull_request'
+        && format('deploy-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Before anything expensive. A repository still serving from a branch
+      # will not serve what this run uploads, and the failure it gives at the
+      # end names neither the cause nor the fix.
+      #
+      # Not on a pull request: nothing is being published, and a check that
+      # went red over a setting the branch cannot change would be red on every
+      # pull request until somebody changed it.
+      - name: Check that Pages is set to deploy from Actions
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! kind=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type 2>/dev/null); then
+            echo "::warning::could not read the Pages configuration; letting the deploy decide"
+            exit 0
+          fi
+          echo "Pages build type: $kind"
+          if [ "$kind" != "workflow" ]; then
+            echo "::error::Pages is set to deploy from a branch ($kind), so it will not serve this build."
+            echo "Set Settings -> Pages -> Source to GitHub Actions, or run:"
+            echo "  gh api -X PUT repos/$GITHUB_REPOSITORY/pages -f build_type=workflow"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          # Empty means the commit this run is for, which is what a push
+          # wants. A caller passes a branch, so it gets its own new commit.
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The pages are only as good as the types behind them.
+      - name: Check the types
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      # Every route is asked for over a server that resolves paths the way
+      # this host does, and every link in every page is followed. This is what
+      # catches a permalink that would answer 404 before it is deployed.
+      - name: Check that every address serves the page it should
+        run: node tools/test-routes.mjs --no-build
+
+      # 160 MB of it is the songs, so this is skipped on a pull request: the
+      # build and the checks are what a branch needs, and there is nothing to
+      # publish it to.
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

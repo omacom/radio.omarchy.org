@@ -1,0 +1,65 @@
+---
+/* One page per song.
+ *
+ * A link that is shared has to arrive as a document of its own: the song's
+ * name in the tab, its own card wherever it is pasted, and the song itself
+ * baked into the page so it starts playing before anything is fetched — while
+ * the press that opened the link still counts as engagement.
+ */
+import type { GetStaticPaths } from 'astro';
+import Deck from '../../layouts/Deck.astro';
+import { readEpisodes, readTracks } from '../../lib/sources.ts';
+import { isReservedSlug, seedOf } from '../../lib/lists.ts';
+import type { Item, Show } from '../../lib/item.ts';
+import { audioMeta } from '../../lib/seo.ts';
+import { songNode } from '../../lib/schema.ts';
+import { CANON } from '../../lib/site.ts';
+
+export const getStaticPaths = (() => {
+  const tracks = readTracks();
+  const show = readEpisodes();
+
+  for (const track of tracks) {
+    if (isReservedSlug(track.key)) {
+      throw new Error(
+        `${JSON.stringify(track.title)} slugs to ${track.key}, which is the address of the ` +
+        'list itself. Give it a title that does not, or the page for one of them would ' +
+        'quietly overwrite the other.',
+      );
+    }
+  }
+
+  return tracks.map((track) => ({
+    params: { slug: track.slug },
+    props: { track, tracks, show },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  track: Item;
+  tracks: Item[];
+  show: Show;
+}
+
+const { track, tracks, show } = Astro.props;
+const path = `/${track.key}`;
+const artist = track.artist || 'unknown';
+const audio = `${CANON}/${track.url.replace(/^\/+/, '')}`;
+---
+<Deck
+  head={{
+    title: `${track.title} by ${artist} · Omarchy Radio`,
+    description:
+      `${track.title} by ${artist}, on Omarchy Radio: a song about the Omarchy desktop, ` +
+      'made by somebody who runs it. Press play.',
+    path,
+    ogType: 'music.song',
+    extra: audioMeta(audio),
+  }}
+  schema={songNode(track, path)}
+  seed={seedOf(track)}
+  kind="playlist"
+  list={tracks}
+  only={track}
+  show={show}
+/>

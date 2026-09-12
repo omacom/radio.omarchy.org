@@ -1,0 +1,22 @@
+---
+/* Omarchy Stories: the show the community makes about running this desktop.
+ * Nothing about it lives in this repo. */
+import Deck from '../../layouts/Deck.astro';
+import { readEpisodes } from '../../lib/sources.ts';
+import { seriesNode } from '../../lib/schema.ts';
+
+const show = readEpisodes();
+---
+<Deck
+  head={{
+    title: `${show.name} · Omarchy Radio`,
+    description:
+      `${show.name}, the show the community makes about running this desktop. ` +
+      'Every episode, with its chapters, playable here.',
+    path: '/podcast',
+  }}
+  schema={seriesNode(show.episodes, show.home)}
+  kind="podcast"
+  list={show.episodes}
+  show={show}
+/>

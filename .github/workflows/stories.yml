@@ -1,0 +1,82 @@
+# Keeps public/stories/feed.rss level with the show.
+#
+# The player reads the episode list out of this repo rather than from the
+# show's host, so this is what makes a new episode appear on the deck. The
+# audio is still the host's, so their download figures are unaffected.
+#
+# The job writes a commit only when the show has actually published
+# something: the feed is stamped with the time of the request, so an hourly
+# mirror that compared the whole file would write 24 commits a day. The
+# stamp is dropped before the comparison, in tools/fetch-stories.py.
+#
+# An episode has an address of its own, /podcast/<episode>, and the page behind
+# it is written by the build out of this file — so mirroring the feed is what
+# makes that page exist. The deploy is called here rather than left to the
+# push: a commit made with GITHUB_TOKEN does not set off another workflow, so
+# an episode would sit unpublished until somebody else pushed something.
+#
+# Note that GitHub turns off a scheduled workflow in a repository nobody has
+# pushed to for 60 days, and emails to say so. Any commit turns it back on.
+
+name: stories
+
+on:
+  schedule:
+    # Hourly, off the hour. Everything on GitHub is scheduled at :00, and the
+    # queue there is long enough that a job can run many minutes late.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+# Two runs writing the same file would race each other to push it. Its own
+# group, not the deploy's: this workflow calls that one, and a group held here
+# is a group the deploy would wait on until this job ended — which it cannot,
+# because it is waiting for the deploy.
+concurrency:
+  group: feed-mirror
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.mirror.outputs.published }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails loudly on a feed that will not load, is not a feed, or has lost
+      # every episode, and in each of those cases leaves the copy here alone.
+      - name: Read the feed
+        run: python3 tools/fetch-stories.py
+
+      - name: Commit it, if the show published something
+        id: mirror
+        run: |
+          if git diff --quiet; then
+            echo "nothing new"
+            echo "published=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Bring the podcast feed up to date'
+          git pull --rebase --autostash
+          git push
+          echo "published=yes" >> "$GITHUB_OUTPUT"
+
+  # Only when there is something new to publish. Building the same tree
+  # twenty-four times a day would deploy nothing and say it had.
+  publish:
+    needs: refresh
+    if: needs.refresh.outputs.published == 'yes'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      # The commit this run started at is the one before the mirror's, so the
+      # build has to be told to take the branch as it now stands.
+      ref: main

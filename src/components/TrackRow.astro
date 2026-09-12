@@ -1,0 +1,31 @@
+---
+/* One row, in the shape paintTracks() in the deck rebuilds it in.
+ *
+ * Both halves are links to the same address: the row, and the # beside it
+ * that the deck turns into a press-to-copy once it has loaded. The row is a
+ * link so it can be opened in a tab of its own, copied out of the context
+ * menu, and read by anything that reads links; the press itself is handled by
+ * the deck, so following one costs nothing of what is already playing.
+ *
+ * Kept on one line on purpose. The spans inside a row are inline, so a
+ * newline between two of them is a space on the page.
+ */
+import type { Item } from '../lib/item.ts';
+
+interface Props {
+  item: Item;
+  /** What the row is numbered. Songs count down the list; episodes count up
+      from the far end, so episode 01 stays episode 01 as the show grows. */
+  number: number;
+  /** The line under the title: an artist for a song, a date and a length for
+      an episode. */
+  sub: string;
+  /** This row is the one the page is for. */
+  on?: boolean;
+}
+
+const { item, number, sub, on = false } = Astro.props;
+const path = `/${item.key}`;
+const n = String(number).padStart(2, '0');
+---
+<li class:list={[{ 'is-on': on }]}><a class:list={['track', { 'is-on': on }]} href={path}><span class="tr-n">{n}</span><span class="tr-t"><span class="tr-line"><span class="tr-title">{item.title}</span><span class="tr-ex" hidden={!item.explicit}>explicit</span></span><span class="tr-artist">{sub}</span></span><span class="tr-s"><span class="tr-st"></span><span class="tr-c" hidden></span></span></a><a class="tr-link" href={path} title="Permalink &#8212; press to copy" aria-label={`Copy link to ${item.title}`}>#</a></li>
