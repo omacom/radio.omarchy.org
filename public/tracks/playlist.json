@@ -167,6 +167,12 @@
       "title": "Take Me, Lead Me, Show Me the Way",
       "artist": "TriciaAmazingyear",
       "file": "triciaamazingyear-take-me-lead-me-show-me-the-way.mp3"
+    },
+    {
+      "title": "Step two",
+      "artist": "simoz",
+      "file": "simoz-step-two.mp3",
+      "explicit": true
     }
   ]
 }
