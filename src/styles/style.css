@@ -522,6 +522,18 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 .tb-play:hover { background: var(--acHi); border-color: var(--acHi); color: var(--acFg); }
 
+/* A mode, not another step, so it stands off the group the steps share a
+   border in. Filled is the same "this is on" the lyrics button and the
+   list switch already use. */
+.tb-mode { margin-left: 10px; }
+.tb.is-on {
+  color: var(--acFg);
+  background: var(--ac);
+  border-color: var(--ac);
+  z-index: 1;
+}
+.tb.is-on:hover { background: var(--acHi); border-color: var(--acHi); color: var(--acFg); }
+
 .seek {
   flex: 1;
   min-width: 160px;

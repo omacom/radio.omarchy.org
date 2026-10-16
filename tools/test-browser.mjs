@@ -28,6 +28,10 @@
        taking the address over
      - a slug that names nothing falls back to the playlist
      - the last track runs into the first one
+     - shuffle walks the playlist without moving the list, and a permalink
+       still opens the song it names
+     - ?seed= names one shuffle: the same opening, the same next, and it
+       stays off the canonical link
 */
 
 import { spawn } from 'node:child_process';
@@ -164,6 +168,9 @@ window.__state = function () {
       function (li) { return li.dataset.skin; }),
     tab: (document.querySelector('.seg-b.is-on') || {}).id || '',
     note: (document.getElementById('playlistNote') || {}).textContent || '',
+    search: location.search,
+    shuffled: !!document.getElementById('shuffle') &&
+      document.getElementById('shuffle').getAttribute('aria-pressed') === 'true',
     plays: window.__probe.plays.slice(),
     statuses: window.__probe.statuses.slice(),
     copied: window.__probe.copied.slice(),
@@ -902,6 +909,62 @@ async function autoplayAllowed({ songs, eps }) {
         is(s.canonical, 'https://radio.omarchy.org' + path, `${path} says what it is`);
       }
     }
+
+    // ── shuffle is an order, not a reordering of the list ──
+    await tab.go(song);
+    s = await until('the song before shuffle', async () => {
+      const st = await tab.state();
+      return st.playing && st.rows >= songs.length ? st : null;
+    });
+    const listed = s ? s.titles.join('|') : '';
+    await tab.click('#shuffle');
+    s = await until('shuffle on', async () => {
+      const st = await tab.state();
+      return st.shuffled ? st : null;
+    });
+    if (s) {
+      ok(/shuffled/.test(s.note), `the note says so: ${s.note.trim()}`);
+      is(s.titles.join('|'), listed, 'the list did not move');
+      is(s.row, wanted.title, 'the song that was named is still the one playing');
+      is(s.path, song, 'and the address still names it');
+    }
+    const shuffleEntries = (await tab.state()).entries;
+    await tab.click('#next');
+    s = await until('the song shuffle stepped to', async () => {
+      const st = await tab.state();
+      return st.playing && st.row && st.row !== wanted.title ? st : null;
+    });
+    if (s) {
+      is(s.titles.join('|'), listed, 'next did not reorder the list either');
+      ok(s.path.startsWith('/playlist/') && s.path !== song,
+         `the address follows the song it stepped to: ${s.path}`);
+      is(s.entries, shuffleEntries, 'without adding a history entry');
+    }
+    await tab.click('#prev');
+    s = await until('back to the named song', async () => {
+      const st = await tab.state();
+      return st.row === wanted.title ? st : null;
+    });
+    if (s) {
+      is(s.row, wanted.title, 'prev walks back to the song that was heard');
+      is(s.path, song, 'and the address comes back with it');
+    }
+    await tab.send('Page.reload');
+    s = await until('shuffle still on after a reload', async () => {
+      const st = await tab.state();
+      return st.playing && st.at > 0 && st.row === wanted.title ? st : null;
+    });
+    if (s) {
+      is(s.path, song, 'a permalink still opens the song it names');
+      is(s.shuffled, true, 'and the seed on the address came back with it');
+      ok(/[?&]seed=/.test(s.search), `the reload kept the seed: ${s.search}`);
+    }
+    await tab.click('#shuffle');
+    s = await until('shuffle off', async () => {
+      const st = await tab.state();
+      return st.shuffled ? null : st;
+    });
+    if (s) ok(/on repeat/.test(s.note), `back to the rotation: ${s.note.trim()}`);
   } finally {
     await tab.close();
     await browser.close();
@@ -1016,6 +1079,88 @@ async function offline({ songs }) {
   }
 }
 
+/* A seed is a shuffle you can send. Same name, same opening, same next,
+   and the page a crawler files is still the page, not one file per name. */
+async function seededShuffle({ songs }) {
+  section('a seed is a shuffle you can send');
+  const browser = await Browser.launch('no-user-gesture-required');
+  const tab = await browser.tab();
+  try {
+    await tab.go('/?seed=Omarchy');
+    let s = await until('the seeded shuffle to start', async () => {
+      const st = await tab.state();
+      return st.playing && st.at > 0 && st.rows >= songs.length ? st : null;
+    });
+    if (!s) return;
+    is(s.shuffled, true, 'a seed turns shuffle on');
+    is(s.search, '?seed=omarchy', `the address keeps the folded seed: ${s.search}`);
+    ok(!s.canonical.includes('?'), `the canonical link carries the seed: ${s.canonical}`);
+    ok(/shuffled/.test(s.note) && /omarchy/.test(s.note), `the note names it: ${s.note.trim()}`);
+    is(s.path, '/', 'the front page stays the front page');
+    const first = s.row;
+
+    await tab.click('#next');
+    s = await until('the seeded next', async () => {
+      const st = await tab.state();
+      return st.playing && st.row && st.row !== first ? st : null;
+    });
+    const second = s ? s.row : '';
+    if (s) {
+      ok(s.search.includes('seed=omarchy'), `next kept the seed: ${s.search}`);
+      is(s.path, '/', 'and did not take the address over');
+    }
+
+    await tab.go('/?seed=omarchy');
+    s = await until('the same shuffle again', async () => {
+      const st = await tab.state();
+      return st.playing && st.at > 0 && st.row === first ? st : null;
+    });
+    if (s) is(s.row, first, 'the same seed opens on the same song');
+    await tab.click('#next');
+    s = await until('the same next again', async () => {
+      const st = await tab.state();
+      return st.row === second ? st : null;
+    });
+    if (s) is(s.row, second, 'and steps to the same song');
+
+    const song = songs[1];
+    await tab.go(song.path + '?seed=omarchy');
+    s = await until('the song inside the shuffle', async () => {
+      const st = await tab.state();
+      return st.playing && st.row === song.title ? st : null;
+    });
+    if (s) {
+      is(s.row, song.title, 'the link still opens the song it names');
+      is(s.path, song.path, 'at that song\'s address');
+      ok(s.search.includes('seed=omarchy'), `and keeps the shuffle: ${s.search}`);
+      ok(!s.canonical.includes('seed'), `the canonical link grew a seed: ${s.canonical}`);
+    }
+    await tab.click('#next');
+    s = await until('the step from the named song', async () => {
+      const st = await tab.state();
+      return st.playing && st.row && st.row !== song.title ? st : null;
+    });
+    if (s) ok(s.search.includes('seed=omarchy'), `the step kept the seed: ${s.search}`);
+
+    // The address is the only copy. A front page with no seed is in order,
+    // even in a browser that just played one.
+    await tab.go('/');
+    s = await until('the front page with no seed', async () => {
+      const st = await tab.state();
+      return st.playing && st.at > 0 && st.rows >= songs.length ? st : null;
+    });
+    if (s) {
+      is(s.shuffled, false, 'no seed is not a shuffle');
+      is(s.search, '', `the address did not keep one: ${s.search}`);
+      ok(/on repeat/.test(s.note), `back to the rotation: ${s.note.trim()}`);
+      is(s.row, songs[0].title, 'and the playlist starts from the top');
+    }
+  } finally {
+    await tab.close();
+    await browser.close();
+  }
+}
+
 /* ── go ──────────────────────────────────────────────────────────────── */
 const server = serve();
 let code = 1;
@@ -1032,6 +1177,7 @@ try {
   await stalePlaylist(site);
   await desktopTheme();
   await offline(site);
+  await seededShuffle(site);
   console.log(`  ${passed - mark} checks`);
   console.log(`\n${passed} checks passed`);
   if (failures.length) {

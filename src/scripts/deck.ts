@@ -6,9 +6,11 @@
  * src/lib/slug.ts, which the build reads too.
  *
  * There is no live stream. The playlist is the station: it starts itself on
- * arrival, plays in order, and goes round again at the end. Everything the
- * deck plays is a file in this repo, which is why every one of them has an
- * address of its own.
+ * arrival, plays in order, and goes round again at the end. Shuffle, when
+ * it is on, walks the order a seed names — and the seed is on the address,
+ * so a shuffle is a place you can send somebody. Everything the deck plays
+ * is a file in this repo, which is why every one of them has an address of
+ * its own.
  */
 
 import {
@@ -17,6 +19,8 @@ import {
   TRACKS_DIR, TRACKS_MANIFEST,
 } from '../lib/site.ts';
 import { assignSlugs, fold } from '../lib/slug.ts';
+import { permutationOf, stepPerm } from '../lib/order.ts';
+import { mintSeed, spellSeed } from '../lib/seed.ts';
 import { iconSvg } from '../lib/icons.ts';
 import { dateLabel, fmt, hms, lengthLabel, plural } from '../lib/format.ts';
 import { SKINS, derive, type Skin, type Theme } from './theme.ts';
@@ -24,7 +28,7 @@ import { DESKTOP, desktopName, watchDesktop } from './omarchy-theme.ts';
 import type { Item, Stamped } from '../lib/item.ts';
 import type { Kind } from '../lib/slug.ts';
 import {
-  drawField, fieldPainted, initField, markFieldStale, sizeField,
+  drawField, fieldPainted, initField, markFieldStale, seedField, sizeField,
 } from './field.ts';
 import { initLcdTape, tearTape } from './lcd-vhs.ts';
 
@@ -44,7 +48,6 @@ var STORE_KEY = 'omarchy-radio-skin';
 var STORE_PIN = 'omarchy-radio-skin-pinned';
 var STORE_TRACKS = 'omarchy-radio-playlist';
 var STORE_STORIES = 'omarchy-radio-stories';
-
 var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ── the elements ────────────────────────────────────────
@@ -57,7 +60,7 @@ var IDS = [
   'bg', 'fit', 'app', 'lcd', 'lcdSrc', 'lcdBody', 'lcdOut',
   'themeBtn', 'themeMenu',
   'themeCaret', 'skinName', 'stationLabel', 'srcLabel',
-  'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
+  'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next', 'shuffle',
   'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
   'playlistKind', 'playlistName', 'tracks', 'trHead', 'playlistNote',
   'status', 'seg', 'tabSongs', 'tabPodcast',
@@ -181,6 +184,11 @@ var analyser: AnalyserNode | null = null;
 var freq: Uint8Array<ArrayBuffer> | null = null;
 var loadedSrc = '';
 var intent: Intent = 'idle';
+/** The playlist walks the order `seedStr` names. Empty means in order. */
+var shuffled = false;
+var seedStr = '';
+/** Indices into S.tracks. Empty unless shuffle is on and there are songs. */
+var order: number[] = [];
 var gestured = false; // the listener has touched the page at least once
 var wiring = false; // an audio graph waiting on its context to start
 /** An autoplay the browser refused, waiting for a gesture. */
@@ -612,8 +620,8 @@ function makeAudio(analysed: boolean): HTMLMediaElement {
     paintClock();
     syncLyrics();
   });
-  // The end of one is the start of the next, and the end of the last is
-  // the start of the first. That is the whole of the rotation.
+  // The end of one is the start of the next. In order, the end of the last
+  // is the start of the first; shuffled, it is the next song the seed names.
   a.addEventListener('ended', function () {
     if (mine()) next();
   });
@@ -825,11 +833,16 @@ function play(src: string, mode: Mode, ti: number) {
    the playlist is what answers: from the top, in order, round again at the
    end. Nothing about it was chosen, so it leaves the address alone — the
    page the listener opened stays the page they are on, and a permalink
-   goes on meaning a song somebody picked. */
+   goes on meaning a song somebody picked.
+
+   A shuffle opens on the first song of its order, which the seed names,
+   rather than at the top. That is still not a song anybody picked, so the
+   path is left alone — the seed on it is the shuffle, not a track. */
 function autostart(how?: How) {
   if (!S.tracks.length) { setStatus('nothing in the playlist'); return; }
   chose = false;
-  playFrom(S.tracks, 'track', 0, how);
+  var i = shuffled && order.length ? order[0]! : 0;
+  playFrom(S.tracks, 'track', i, how);
 }
 
 function playFrom(list: Item[], mode: Mode, i: number, how?: How) {
@@ -888,17 +901,92 @@ function stop() {
   paintAll();
 }
 
-// These step whichever list is playing, and wrap: the last track runs into
-// the first one. Transport rather than navigation, so they leave the
-// history and — unless the listener had named a song — the address alone.
+/* These step whichever list is playing. In order, the last track runs into
+   the first. Shuffled, both directions walk the order the seed names, so
+   the song that just finished is not the next one and two people on the
+   same seed hear the same step. An episode is a show: the next one is the
+   next one, whether or not the songs are shuffled.
+
+   Transport rather than navigation, so they leave the history and — unless
+   the listener had named a song — the path alone. The seed stays either way. */
+function inOrder(): boolean {
+  var l = playingList();
+  return S.mode === 'story' || !shuffled || !order.length || !l || l.length < 2;
+}
+
 function next() {
   var l = playingList();
-  if (l && l.length) playFrom(l, S.mode, (S.ti + 1) % l.length);
+  if (!l || !l.length) return;
+  if (inOrder()) { playFrom(l, S.mode, (S.ti + 1) % l.length); return; }
+  playFrom(S.tracks, 'track', stepPerm(order, S.ti, 1));
 }
 
 function prev() {
   var l = playingList();
-  if (l && l.length) playFrom(l, S.mode, (S.ti - 1 + l.length) % l.length);
+  if (!l || !l.length) return;
+  if (inOrder()) { playFrom(l, S.mode, (S.ti - 1 + l.length) % l.length); return; }
+  playFrom(S.tracks, 'track', stepPerm(order, S.ti, -1));
+}
+
+function toggleShuffle() {
+  // The first press anywhere buys the sound. This one is a control, so the
+  // gesture handler leaves it alone, and it has to say so itself.
+  if (silenced()) unsilence();
+  // Turning it on mints a name and puts it on the address. Turning it off
+  // takes the name off. That is the whole of the storage: a return visit
+  // is whatever address was opened, not a copy kept beside it.
+  adoptSeed(shuffled ? '' : mintSeed());
+  if (!silenced()) setStatus(shuffled ? 'shuffled' : 'on repeat');
+  paintShuffleChrome();
+  syncRoute('replace');
+}
+
+function rebuildOrder() {
+  order = shuffled && seedStr
+    ? permutationOf(S.tracks.map(function (t) { return t.key || ''; }), seedStr)
+    : [];
+}
+
+/* The address is the seed. Nothing is written beside it. The ground is
+   not touched here — it was filled once, at boot, from whatever name the
+   address had then. */
+function adoptSeed(text: string) {
+  var spell = spellSeed(text);
+  shuffled = !!spell;
+  seedStr = spell;
+  rebuildOrder();
+}
+
+function bootSeed() {
+  adoptSeed(new URLSearchParams(location.search).get('seed') || '');
+}
+
+function withSeed(path: string): string {
+  var bare = path.split('?')[0]!.split('#')[0]!;
+  if (!seedStr) return bare;
+  return bare + '?seed=' + encodeURIComponent(seedStr);
+}
+
+/* The rows and the tabs are links. A press is handled here, but a new tab
+   only has the href, so the seed has to be on it or the shuffle does not
+   survive the click. */
+function stampSeed() {
+  document.querySelectorAll('a.mark, a.track, a.tr-link, #tabSongs, #tabPodcast').forEach(function (node) {
+    if (!(node instanceof HTMLAnchorElement)) return;
+    var raw = node.getAttribute('href') || '';
+    if (!raw || raw.charAt(0) !== '/') return;
+    node.setAttribute('href', withSeed(raw));
+  });
+}
+
+function paintShuffleChrome() {
+  paintTransport();
+  stampSeed();
+  /* The note is the sentence that says which order is on. A filtered list,
+     an open sheet, and the podcast panel are saying something else, and
+     rebuilding the rows to change a sentence would scroll the list out
+     from under whoever is reading it. */
+  if (S.tab === 'songs' && !S.lyricsOpen && !queryTerms().length) paintTrackNote();
 }
 
 /* ── autoplay ────────────────────────────────────────
@@ -1238,6 +1326,9 @@ function epNumber(i: number): number { return S.eps.length - i; }
 function applyManifest(j: Manifest | null) {
   S.tracks = ((j && j.tracks) || []).map(resolveTrack);
   assignSlugs(S.tracks, 'playlist');
+  // The order is ranks of these keys. A list that just arrived is a
+  // different list, and the seed names an order of this one.
+  rebuildOrder();
   paintTracks();
 }
 
@@ -1404,6 +1495,9 @@ function paintTransport() {
      say the same two things. */
   el.toggle.classList.toggle('is-playing', S.playing);
   el.toggle.setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
+  el.shuffle.classList.toggle('is-on', shuffled);
+  el.shuffle.setAttribute('aria-pressed', shuffled ? 'true' : 'false');
+  el.shuffle.setAttribute('aria-label', shuffled ? 'Shuffle on' : 'Shuffle');
   el.volRot.style.transform = 'rotate(' + (-135 + S.vol * 270) + 'deg)';
   el.volLabel.textContent = String(Math.round(S.vol * 100));
   el.volKnob.setAttribute('aria-valuenow', String(Math.round(S.vol * 100)));
@@ -1462,7 +1556,7 @@ function indexOfKey(list: Item[], key: string): number {
   return -1;
 }
 
-function permalink(t: Item): string { return location.origin + '/' + t.key; }
+function permalink(t: Item): string { return location.origin + withSeed('/' + t.key); }
 
 /* Tolerant on the way in, exact on the way out. A trailing slash, the
    .html of the file that served the page, a capital letter, an escaped
@@ -1522,7 +1616,11 @@ function here(): Route { return parseRoute(location.pathname, location.hash); }
    a song's address a second after opening — three pages of this site that
    could never be linked to, and three canonical links pointing at a song
    nobody asked for. Press a row or follow a link and the address is
-   yours; until then it stays the page it is. */
+   yours; until then it stays the page it is.
+
+   The seed is not part of that. It rides along in the query, and it is
+   left off the canonical link: a shuffle is a way of listening, not a
+   different page. */
 function wantedPath(): string {
   var it = nowItem();
   var showing = S.tab === 'stories' ? 'podcast' : 'playlist';
@@ -1530,15 +1628,26 @@ function wantedPath(): string {
   return S.route ? '/' + S.route : '/';
 }
 
+function wantedAddress(): string {
+  var params = new URLSearchParams(location.search);
+  params.delete('seed');
+  if (seedStr) params.set('seed', seedStr);
+  var q = params.toString();
+  return wantedPath() + (q ? '?' + q : '');
+}
+
 /* Pressing a row is a navigation and earns a history entry: back returns
    the listener where they came from, the way a link should. Stepping with
    the transport buttons, or a track ending into the next one, does not —
    that would bury the way out under a playlist's worth of entries. */
 function syncRoute(how?: How) {
-  var want = wantedPath();
-  if (location.pathname + location.hash !== want) {
+  var want = wantedAddress();
+  var have = location.pathname + location.search + location.hash;
+  if (have !== want) {
     try {
-      if (how === 'push' && location.pathname !== want) history.pushState(null, '', want);
+      // A seed appearing, or a spelling being tidied, is not a place the
+      // back button should stop. Only a path changing is.
+      if (how === 'push' && location.pathname !== wantedPath()) history.pushState(null, '', want);
       else history.replaceState(null, '', want);
     } catch (e) { /* file:// and the like */ }
   }
@@ -1626,6 +1735,14 @@ function wireLinks() {
     if (!r.known) return; // a file, the feed, some other page: let it load
 
     e.preventDefault();
+    // A link that names a shuffle is that shuffle. One that does not —
+    // the logo, a tab, a row painted before the seed was stamped — keeps
+    // the one this visit is already in.
+    var linked = spellSeed(u.searchParams.get('seed'));
+    if (linked && linked !== seedStr) {
+      adoptSeed(linked);
+      paintShuffleChrome();
+    }
     if (navigate(r, 'push')) return;
     // Ours, and it names nothing this deck is holding. The page may well
     // exist, so let the browser go and get it rather than sitting here.
@@ -1664,6 +1781,8 @@ function paintTabs() {
     ? showName().toLowerCase()
     : STATION.name.toLowerCase();
   el.tracks.setAttribute('aria-label', stories ? 'Episodes' : 'Playlist');
+  el.tabSongs.setAttribute('href', withSeed('/playlist'));
+  el.tabPodcast.setAttribute('href', withSeed('/podcast'));
 }
 
 function setTab(tab: Tab): boolean {
@@ -1749,7 +1868,7 @@ function paintTracks() {
        reads links. The press itself is still handled here, so following
        one costs nothing of what is already playing. */
     var b = document.createElement('a');
-    b.href = '/' + tr.key;
+    b.href = withSeed('/' + tr.key);
     b.className = 'track' + (on ? ' is-on' : '');
     b.innerHTML =
       '<span class="tr-n"></span>' +
@@ -1804,7 +1923,7 @@ function paintTracks() {
     // The same address, as the thing it is: press it and it is on the
     // clipboard, hold a modifier and the browser opens it.
     var link = document.createElement('a');
-    link.href = '/' + tr.key;
+    link.href = withSeed('/' + tr.key);
     link.className = 'tr-link';
     link.textContent = '#';
     link.title = 'Permalink — press to copy';
@@ -1908,7 +2027,7 @@ function paintTrackNote(shown = -1) {
   }
   if (S.tab === 'stories') { paintStoryNote(); return; }
   el.playlistNote.textContent = S.tracks.length
-    ? S.tracks.length + ' tracks, on repeat'
+    ? S.tracks.length + ' tracks, ' + (shuffled && seedStr ? 'shuffled · ' + seedStr : 'on repeat')
     : 'nothing in the playlist yet';
 }
 
@@ -2287,6 +2406,7 @@ function boot() {
   el.stop.addEventListener('click', stop);
   el.next.addEventListener('click', next);
   el.prev.addEventListener('click', prev);
+  el.shuffle.addEventListener('click', toggleShuffle);
   el.lyricsBtn.addEventListener('click', toggleLyrics);
 
   el.find.addEventListener('input', function () {
@@ -2336,6 +2456,10 @@ function boot() {
     var t = e.target;
     if (t instanceof Element && t.matches('input, textarea, [contenteditable]')) return;
     if (e.code === 'Space') { toggle(); e.preventDefault(); }
+    if (e.key === 's' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      toggleShuffle();
+      e.preventDefault();
+    }
     /* The terminal's own binding for this, and the box says so. A modifier
        means the listener is asking the browser for something else. */
     if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -2349,6 +2473,10 @@ function boot() {
     new ResizeObserver(function () { sizeField(); measureFit(); }).observe(document.body);
   }
 
+  bootSeed();
+  /* Before the first frame. A seed turned on later does not refill the
+     ground — see seedField. The bars are the record either way. */
+  if (seedStr) seedField(seedStr);
   paintAll();
   initField(el.bg, el.app);
   sizeField();
@@ -2363,6 +2491,11 @@ function boot() {
   requestAnimationFrame(frame);
 
   tuneIn();
+  /* A seed spelled with a capital is folded here, even when tune-in had
+     nothing to play yet. Not while a link is still waiting on its list:
+     rewriting the address before that answer lands would turn a slug the
+     list has not seen into the list itself. */
+  if (!linkPending) syncRoute('replace');
   loadTracks();
   if (SHOW_PODCAST) loadStories();
   setInterval(watchdog, 5000);
@@ -2383,6 +2516,10 @@ function boot() {
      the bar. A route that names nothing here is not a reason to go quiet:
      the playlist answers, and the address stops claiming otherwise. */
   window.addEventListener('popstate', function () {
+    // Back restores the address, seed and all. An entry with no seed is
+    // in order, because the address is the only copy.
+    adoptSeed(new URLSearchParams(location.search).get('seed') || '');
+    paintShuffleChrome();
     var r = here();
     if (navigate(r, 'replace')) return;
     S.route = r.known ? r.kind : '';
