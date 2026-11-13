@@ -4,7 +4,10 @@ The playlist for Omarchy Radio, and the whole of what the deck plays. Every
 track here is served straight from the repo, so adding one is a pull request.
 
 The order in `playlist.json` is the order it plays in, from the top, round
-again at the end.
+again at the end. A listener can ask for shuffle, or open a link with
+`?seed=`, which names another order of this same list and leaves this one
+on screen. A song added later slots into that order; it does not reshuffle
+the rest.
 
 ## Add a track
 

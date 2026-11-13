@@ -10,7 +10,12 @@
  * analyser's bands and the theme's inks, and it paints. The loudness it
  * settles on is worth reading back — src/scripts/lcd-vhs.ts drives the tape
  * off the same number, so the ground and the readout answer the same music.
+ *
+ * The one thing it takes from a shuffle is the name, and only to fill the
+ * texture once. src/lib/seed.ts is that name. Playback stays next door.
  */
+
+import { rngFrom, spellSeed, textureSeed } from '../lib/seed.ts';
 
 /** The three inks a lit cell can wear, out of the theme's five-step ramp. */
 export interface FieldInks {
@@ -42,6 +47,24 @@ const JITTER = rand(4096);
    wave: blobs that wander and dissolve, not a pattern sliding past. */
 const NOISE_SIZE = 128;
 const NOISE = rand(NOISE_SIZE * NOISE_SIZE);
+
+/* A visit that arrived with a seed fills these once, before the first
+   frame, so two people who opened the same shuffle get the same ground.
+   The drift itself is the clock, and the bars are the record — neither is
+   a draw, and reseeding later would be the ground jumping under a listener
+   who is already looking at it. */
+export function seedField(text: string): void {
+  const spell = spellSeed(text);
+  if (!spell) return;
+  fill(JITTER, textureSeed(spell, 'jitter'));
+  fill(NOISE, textureSeed(spell, 'noise'));
+  painted = false;
+}
+
+function fill(buf: Float32Array, seed: number): void {
+  const rng = rngFrom(seed);
+  for (let i = 0; i < buf.length; i++) buf[i] = rng();
+}
 
 /** Bilinear value noise, smoothstepped, wrapping at the field's edge. */
 function noiseAt(u: number, v: number): number {

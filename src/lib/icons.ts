@@ -69,6 +69,26 @@ export const ICONS: Record<string, Icon> = {
     cells: [...triangle(SMALL, 'right', 0, 5), ...triangle(SMALL, 'right', 6, 5)],
   },
 
+  /* The crossed pair, drawn bigger than the rest of the transport because
+     the crossing is the whole of the sign: two tails on the left swap
+     places and come out as two arrowheads on the right. Squashed into the
+     transport's usual box the heads meet in one bar and it reads as two
+     stacked arrows — repeat, not shuffle. */
+  shuffle: {
+    w: 18, h: 16, label: 'Shuffle',
+    cells: [
+      [0, 3, 4, 2], [0, 11, 4, 2],             // the tails
+      [4, 5, 1, 1], [9, 5, 1, 1],              // out of them, crossing
+      [5, 6, 1, 1], [8, 6, 1, 1],
+      [6, 7, 2, 2],                            // where they swap
+      [5, 9, 1, 1], [8, 9, 1, 1],
+      [4, 10, 1, 1], [9, 10, 1, 1],            // and out the other side
+      [10, 3, 2, 2], [10, 11, 2, 2],           // the shafts the crossing swaps into
+      [12, 1, 2, 1], [12, 2, 4, 1], [12, 3, 6, 2], [12, 5, 4, 1], [12, 6, 2, 1],
+      [12, 9, 2, 1], [12, 10, 4, 1], [12, 11, 6, 2], [12, 13, 4, 1], [12, 14, 2, 1],
+    ],
+  },
+
   /* The carets: the theme menu's, and the one on an episode's row. */
   'caret-down': {
     w: 7, h: 4, label: 'Open',

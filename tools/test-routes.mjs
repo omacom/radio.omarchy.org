@@ -40,6 +40,8 @@ import { readFileSync } from 'node:fs';
 import { assignSlugs, fold, slugify } from '../src/lib/slug.ts';
 import { SKINS, derive } from '../src/scripts/theme.ts';
 import { ICONS } from '../src/lib/icons.ts';
+import { permutationOf, stepPerm } from '../src/lib/order.ts';
+import { rngFrom, spellSeed, textureSeed } from '../src/lib/seed.ts';
 /* The parsing, not the reading: the build imports the manifest and the feed
    through Vite, which plain node knows nothing about. This is the same code
    over the same two files. */
@@ -262,9 +264,9 @@ function foldRule() {
 const GLYPHS = new Set('\u25b6\u25c0\u25a0\u2759\u25bc\u25b2\u25be\u25b8\u2197');
 
 function iconRule() {
-  // The four the transport needs, both faces of the two that have two, and
-  // the arrow that says a link leaves the site.
-  for (const name of ['play', 'pause', 'stop', 'prev', 'next',
+  // The transport, both faces of the two that have two, and the arrow
+  // that says a link leaves the site.
+  for (const name of ['play', 'pause', 'stop', 'prev', 'next', 'shuffle',
                       'caret-down', 'caret-up', 'caret-right', 'arrow-ne']) {
     ok(ICONS[name], `there is no icon called ${name}`);
   }
@@ -279,6 +281,52 @@ function iconRule() {
     }
   }
   console.log(`  ${Object.keys(ICONS).length} icons, every cell a whole number inside its box`);
+}
+
+function orderRule() {
+  const keys = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  for (const name of ['omarchy', 'fork', '0', 'quattro']) {
+    const order = permutationOf(keys, name);
+    ok(new Set(order).size === keys.length, `${name} repeated a song: ${order.join(',')}`);
+    ok(order.every((i) => i >= 0 && i < keys.length), `${name} left the list`);
+    let at = order[0];
+    const seen = [at];
+    for (let i = 1; i < keys.length; i++) {
+      at = stepPerm(order, at, 1);
+      seen.push(at);
+    }
+    ok(new Set(seen).size === keys.length, `${name} did not visit every song: ${seen.join(',')}`);
+    ok(stepPerm(order, at, 1) === order[0], `${name} did not wrap to its start`);
+    ok(stepPerm(order, order[0], -1) === order[order.length - 1], `${name}: prev did not wrap`);
+    ok(permutationOf(keys, name).join() === order.join(), `${name} is not the same shuffle twice`);
+    ok(permutationOf(keys, name.toUpperCase() + '!').join() === order.join(),
+       `${name} did not fold capitals and punctuation`);
+  }
+  ok(permutationOf(keys, 'omarchy').join() !== permutationOf(keys, 'fork').join(),
+     'two names made the same shuffle');
+  ok(permutationOf(['only'], 'omarchy').length === 0, 'one song was given an order');
+  ok(permutationOf(keys, '').length === 0, 'an empty seed named an order');
+  ok(stepPerm(permutationOf(keys, 'omarchy'), -1, 1) === permutationOf(keys, 'omarchy')[0],
+     'next from nothing did not open on the first song');
+
+  // A new song slots in. The rest keep the order the name gave them.
+  const before = permutationOf(['a', 'b', 'c', 'd'], 'omarchy').map((i) => 'abcd'[i]);
+  const afterKeys = ['a', 'b', 'x', 'c', 'd'];
+  const after = permutationOf(afterKeys, 'omarchy').map((i) => afterKeys[i]).filter((k) => k !== 'x');
+  ok(before.join() === after.join(), `a new song reshuffled the rest: ${before} vs ${after}`);
+
+  ok(spellSeed('Omarchy!') === 'omarchy', `a seed kept its punctuation: ${spellSeed('Omarchy!')}`);
+  ok(spellSeed('') === '' && spellSeed(null) === '', 'an empty seed is a shuffle');
+  ok(textureSeed('omarchy', 'jitter') === textureSeed('Omarchy', 'jitter'),
+     'the ground does not fold the name');
+  ok(textureSeed('omarchy', 'jitter') !== textureSeed('omarchy', 'noise'),
+     'jitter and noise are the same table');
+  ok(textureSeed('omarchy', 'jitter') !== textureSeed('fork', 'jitter'),
+     'two names are the same ground');
+  const rng = rngFrom(textureSeed('omarchy', 'jitter'));
+  const again = rngFrom(textureSeed('omarchy', 'jitter'));
+  ok(rng() === again() && rng() === again(), 'the ground is not the same numbers twice');
+  console.log('  a seed names one order, and a new song does not reshuffle it');
 }
 
 function slugRule() {
@@ -330,6 +378,9 @@ async function main() {
 
   console.log('the icons are drawn, not typed');
   iconRule();
+
+  console.log('a seed names one shuffle, and the list stays where it is');
+  orderRule();
 
   console.log('the rule an address is spelled by');
   slugRule();
@@ -389,6 +440,7 @@ async function main() {
       // before the deck is.
       ok(body.includes('id="find"') && body.includes('id="findHint"'),
          `${path}: no find box`);
+      ok(body.includes('id="shuffle"'), `${path}: no shuffle control`);
       /* Every icon is drawn, not typed. A character here would be drawn by
          whatever font the browser fell back to, because none of these are in
          a subset this site ships — and ▶ and ◀ arrive as colour emoji on

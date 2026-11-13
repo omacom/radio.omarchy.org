@@ -68,6 +68,37 @@ top, because joining a song part-way through is what tuning in has always
 been. A returning listener whose browser already trusts the site gets the
 sound immediately.
 
+## Shuffle
+
+The list is the playlist, in the order the songs were contributed, and that
+is the order it plays in. **shuffle** is the other one. It sits with the
+transport — `s` does the same thing — and it is one order: every song once,
+then the same order again. Next and previous both walk it, so the song that
+just finished is not the next one, and two people on the same shuffle hear
+the same song come next.
+
+A shuffle has a name, and the name is a `seed` on the address:
+`radio.omarchy.org/?seed=omarchy`. That is a place you can send somebody.
+The rows do not move, and a link to a song still opens that song — the seed
+says which shuffle it sits in, and the path says where you enter it. The
+canonical link leaves the seed off. A shuffled deck is a way of listening,
+not a different page, and a crawler should not file one seed per song.
+
+The address is the only copy. Nothing is kept beside it, the way a theme
+is. Open the front page and it plays in order; open `?seed=omarchy` and it
+is that shuffle, for as long as the address says so. Turning shuffle on
+mints a name and puts it there; turning it off takes it off.
+
+It is the playlist's. An episode is a show, and the next episode is the
+next episode. A new song joins the order where the name puts it and does
+not reshuffle the rest — the rank is the name and the song, in
+[`src/lib/order.ts`](src/lib/order.ts), which is what `npm test` walks.
+
+The ground takes the same name, once, when the visit opens. The bars under
+the clock are not random: they are the record, or a stand-in that moves
+with the clock when the record cannot be heard. Seeding them would be
+seeding the song.
+
 ## Finding a song
 
 Thirty-odd songs is a list you read; a hundred is a list you search. **find**
