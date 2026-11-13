@@ -512,6 +512,7 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
 }
 .tb:first-child { margin-left: 0; }
 .tb:hover { border-color: var(--ac); color: var(--ac); z-index: 1; }
+.tb[hidden] { display: none; }
 
 .tb-play {
   width: 74px;
@@ -521,6 +522,8 @@ a, button, [role="slider"] { -webkit-tap-highlight-color: transparent; }
   border-color: var(--ac);
 }
 .tb-play:hover { background: var(--acHi); border-color: var(--acHi); color: var(--acFg); }
+.tb-shuffle { width: 52px; font-size: 9px; letter-spacing: .12em; }
+.tb-shuffle.is-on { color: var(--ac); border-color: var(--ac); z-index: 1; }
 
 .seek {
   flex: 1;

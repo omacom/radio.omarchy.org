@@ -57,7 +57,7 @@ var IDS = [
   'bg', 'fit', 'app', 'lcd', 'lcdSrc', 'lcdBody', 'lcdOut',
   'themeBtn', 'themeMenu',
   'themeCaret', 'skinName', 'stationLabel', 'srcLabel',
-  'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next',
+  'marq', 'artist', 'curTime', 'durTime', 'vis', 'prev', 'toggle', 'stop', 'next', 'shuffle',
   'seek', 'seekFill', 'seekHead', 'volKnob', 'volRot', 'volLabel',
   'playlistKind', 'playlistName', 'tracks', 'trHead', 'playlistNote',
   'status', 'seg', 'tabSongs', 'tabPodcast',
@@ -103,6 +103,7 @@ interface State {
   vol: number;
   cur: number;
   dur: number;
+  shuffle: boolean;
   /** The name of the theme on, which is what survives the list changing
       under it: the desktop's own theme appears at the top of the list the
       moment the extension offers one, and an index would then mean the
@@ -130,6 +131,7 @@ var S: State = {
   vol: 0.8,
   cur: 0,
   dur: 0,
+  shuffle: false,
   skin: SKINS[0]!.name,
   themeOpen: false,
   lyricsOpen: false,
@@ -231,6 +233,12 @@ var el = {} as Els;
 // so in the list without rebuilding it: the list is also what the listener
 // is reading, and a rebuild throws away their scroll position.
 var stateCell: HTMLElement | null = null;
+/* A shuffle is a listening run, not a permanently reordered playlist. The
+   current song begins it; `remaining` holds each other track once, while
+   `history` lets Previous mean the song the listener actually just heard. */
+var shuffleHistory: number[] = [];
+var shuffleAt = -1;
+var shuffleRemaining: number[] = [];
 /** The row that cell sits in, for the one thing that wants the whole row. */
 var playingRow: HTMLElement | null = null;
 /** And which item that row is, which is not always the one being looked for. */
@@ -839,12 +847,65 @@ function playFrom(list: Item[], mode: Mode, i: number, how?: How) {
   syncRoute(how);
 }
 
+function shuffled(indices: number[]): number[] {
+  for (var i = indices.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var swap = indices[i]!;
+    indices[i] = indices[j]!;
+    indices[j] = swap;
+  }
+  return indices;
+}
+
+function beginShuffle(i: number) {
+  shuffleHistory = i >= 0 ? [i] : [];
+  shuffleAt = shuffleHistory.length - 1;
+  shuffleRemaining = shuffled(S.tracks.map(function (_, n) { return n; }).filter(function (n) {
+    return n !== i;
+  }));
+}
+
+function shuffleNext(): boolean {
+  if (!S.tracks.length) return false;
+  // Returning from Previous follows the run the listener has already made.
+  if (shuffleAt < shuffleHistory.length - 1) {
+    shuffleAt++;
+    playFrom(S.tracks, 'track', shuffleHistory[shuffleAt]!);
+    return true;
+  }
+  // One cycle visits every other song before it starts afresh. Leave the
+  // current song out of the new bag so the seam can never repeat it.
+  if (!shuffleRemaining.length) {
+    shuffleRemaining = shuffled(S.tracks.map(function (_, n) { return n; }).filter(function (n) {
+      return n !== S.ti;
+    }));
+  }
+  var i = shuffleRemaining.pop();
+  if (i === undefined) return false; // a one-track playlist stays put
+  shuffleHistory.push(i);
+  shuffleAt = shuffleHistory.length - 1;
+  playFrom(S.tracks, 'track', i);
+  return true;
+}
+
+function toggleShuffle() {
+  S.shuffle = !S.shuffle;
+  if (S.shuffle) beginShuffle(S.mode === 'track' ? S.ti : -1);
+  else {
+    shuffleHistory = [];
+    shuffleAt = -1;
+    shuffleRemaining = [];
+  }
+  paintTransport();
+}
+
 // The two ways in that mean the listener named this one: a row, or a link.
 // Stepping with the transport goes through playFrom() and leaves that be.
 function playTrack(i: number, how?: How) {
   chose = true;
   S.tab = 'songs';
   S.route = 'playlist';
+  if (S.shuffle) beginShuffle(i);
   playFrom(S.tracks, 'track', i, how);
 }
 
@@ -892,11 +953,18 @@ function stop() {
 // the first one. Transport rather than navigation, so they leave the
 // history and — unless the listener had named a song — the address alone.
 function next() {
+  if (S.shuffle && S.mode === 'track' && shuffleNext()) return;
   var l = playingList();
   if (l && l.length) playFrom(l, S.mode, (S.ti + 1) % l.length);
 }
 
 function prev() {
+  if (S.shuffle && S.mode === 'track') {
+    if (shuffleAt <= 0) return;
+    shuffleAt--;
+    playFrom(S.tracks, 'track', shuffleHistory[shuffleAt]!);
+    return;
+  }
   var l = playingList();
   if (l && l.length) playFrom(l, S.mode, (S.ti - 1 + l.length) % l.length);
 }
@@ -1404,6 +1472,9 @@ function paintTransport() {
      say the same two things. */
   el.toggle.classList.toggle('is-playing', S.playing);
   el.toggle.setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
+  el.shuffle.hidden = S.mode === 'story';
+  el.shuffle.classList.toggle('is-on', S.shuffle);
+  el.shuffle.setAttribute('aria-pressed', String(S.shuffle));
   el.volRot.style.transform = 'rotate(' + (-135 + S.vol * 270) + 'deg)';
   el.volLabel.textContent = String(Math.round(S.vol * 100));
   el.volKnob.setAttribute('aria-valuenow', String(Math.round(S.vol * 100)));
@@ -2287,6 +2358,7 @@ function boot() {
   el.stop.addEventListener('click', stop);
   el.next.addEventListener('click', next);
   el.prev.addEventListener('click', prev);
+  el.shuffle.addEventListener('click', toggleShuffle);
   el.lyricsBtn.addEventListener('click', toggleLyrics);
 
   el.find.addEventListener('input', function () {
